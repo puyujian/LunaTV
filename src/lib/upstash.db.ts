@@ -2,7 +2,7 @@
 
 import { Redis } from '@upstash/redis';
 
-import { AdminConfig } from './admin.types';
+import { AdminConfig, PendingUser, RegistrationStats } from './admin.types';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 
 // 搜索历史最大条数
@@ -358,11 +358,94 @@ export class UpstashRedisStorage implements IStorage {
       // 删除管理员配置
       await withRetry(() => this.client.del(this.adminConfigKey()));
 
+      // 删除待审核用户
+      await withRetry(() => this.client.del(this.pendingUsersKey()));
+
       console.log('所有数据已清空');
     } catch (error) {
       console.error('清空数据失败:', error);
       throw new Error('清空数据失败');
     }
+  }
+
+  // ---------- 注册相关方法 ----------
+  private pendingUsersKey() {
+    return 'admin:pending_users';
+  }
+
+  private registrationStatsKey() {
+    return 'admin:registration_stats';
+  }
+
+  async createPendingUser(
+    username: string,
+    hashedPassword: string
+  ): Promise<void> {
+    const pendingUser: PendingUser = {
+      username,
+      hashedPassword,
+      registeredAt: Date.now(),
+    };
+
+    await withRetry(() =>
+      this.client.hset(this.pendingUsersKey(), {
+        [username]: JSON.stringify(pendingUser),
+      })
+    );
+  }
+
+  async getPendingUsers(): Promise<PendingUser[]> {
+    const result = await withRetry(() =>
+      this.client.hgetall(this.pendingUsersKey())
+    );
+
+    if (!result) return [];
+
+    return Object.values(result).map(
+      (userData) => JSON.parse(ensureString(userData)) as PendingUser
+    );
+  }
+
+  async approvePendingUser(username: string): Promise<void> {
+    // 获取待审核用户数据
+    const pendingUserData = await withRetry(() =>
+      this.client.hget(this.pendingUsersKey(), username)
+    );
+
+    if (!pendingUserData) {
+      throw new Error(`Pending user ${username} not found`);
+    }
+
+    const pendingUser: PendingUser = JSON.parse(ensureString(pendingUserData));
+
+    // 创建正式用户
+    await this.registerUser(username, pendingUser.hashedPassword);
+
+    // 删除待审核用户记录
+    await withRetry(() => this.client.hdel(this.pendingUsersKey(), username));
+  }
+
+  async rejectPendingUser(username: string): Promise<void> {
+    await withRetry(() => this.client.hdel(this.pendingUsersKey(), username));
+  }
+
+  async getRegistrationStats(): Promise<RegistrationStats> {
+    const totalUsers = (await this.getAllUsers()).length;
+    const pendingUsers = (await this.getPendingUsers()).length;
+
+    // 简单实现：今日注册数为0（可以后续扩展）
+    const todayRegistrations = 0;
+
+    // 从配置中获取最大用户数
+    const adminConfig = await this.getAdminConfig();
+    const maxUsers = adminConfig?.SiteConfig?.MaxUsers;
+
+    return {
+      totalUsers,
+      pendingUsers,
+      todayRegistrations,
+      maxUsers,
+    };
   }
 }
 

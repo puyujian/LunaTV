@@ -4,21 +4,24 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { useSite } from '@/components/SiteProvider';
 import { RegisterResponse } from '@/lib/admin.types';
+
+import { useSite } from '@/components/SiteProvider';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 function RegisterPageClient() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [registrationEnabled, setRegistrationEnabled] = useState<boolean | null>(null);
+  const [registrationEnabled, setRegistrationEnabled] = useState<
+    boolean | null
+  >(null);
   const [storageType, setStorageType] = useState<string>('localstorage');
 
   const { siteName } = useSite();
@@ -26,8 +29,8 @@ function RegisterPageClient() {
   // 检查注册是否开启
   useEffect(() => {
     fetch('/api/server-config')
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setRegistrationEnabled(data.EnableRegistration || false);
         setStorageType(data.StorageType || 'localstorage');
       })
@@ -59,7 +62,7 @@ function RegisterPageClient() {
         body: JSON.stringify({
           username: formData.username,
           password: formData.password,
-          confirmPassword: formData.confirmPassword
+          confirmPassword: formData.confirmPassword,
         }),
       });
 
@@ -68,7 +71,7 @@ function RegisterPageClient() {
       if (data.success) {
         setSuccess(data.message);
         setFormData({ username: '', password: '', confirmPassword: '' });
-        
+
         // 如果不需要审批，3秒后跳转到登录页
         if (!data.needsApproval) {
           setTimeout(() => {
@@ -87,9 +90,9 @@ function RegisterPageClient() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -161,7 +164,7 @@ function RegisterPageClient() {
         <h1 className='text-green-600 tracking-tight text-center text-3xl font-extrabold mb-8'>
           {siteName} - 注册
         </h1>
-        
+
         {success ? (
           <div className='text-center'>
             <div className='text-green-600 dark:text-green-400 mb-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20'>

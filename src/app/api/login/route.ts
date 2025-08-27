@@ -170,9 +170,12 @@ export async function POST(req: NextRequest) {
 
     // 检查用户状态
     if (user && user.status === 'pending') {
-      return NextResponse.json({ error: '账号正在审核中，请等待管理员审批' }, { status: 401 });
+      return NextResponse.json(
+        { error: '账号正在审核中，请等待管理员审批' },
+        { status: 401 }
+      );
     }
-    
+
     if (user && user.status === 'rejected') {
       return NextResponse.json({ error: '账号申请已被拒绝' }, { status: 401 });
     }

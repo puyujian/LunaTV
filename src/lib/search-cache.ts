@@ -24,7 +24,11 @@ let lastCleanupTime = 0;
 /**
  * 生成搜索缓存键：source + query + page
  */
-function makeSearchCacheKey(sourceKey: string, query: string, page: number): string {
+function makeSearchCacheKey(
+  sourceKey: string,
+  query: string,
+  page: number
+): string {
   return `${sourceKey}::${query.trim()}::${page}`;
 }
 
@@ -90,7 +94,11 @@ function ensureAutoCleanupStarted(): void {
 /**
  * 智能清理过期的缓存条目
  */
-function performCacheCleanup(): { expired: number; total: number; sizeLimited: number } {
+function performCacheCleanup(): {
+  expired: number;
+  total: number;
+  sizeLimited: number;
+} {
   const now = Date.now();
   const keysToDelete: string[] = [];
   let sizeLimitedDeleted = 0;
@@ -103,7 +111,7 @@ function performCacheCleanup(): { expired: number; total: number; sizeLimited: n
   });
 
   const expiredCount = keysToDelete.length;
-  keysToDelete.forEach(key => SEARCH_CACHE.delete(key));
+  keysToDelete.forEach((key) => SEARCH_CACHE.delete(key));
 
   // 2. 如果缓存大小超限，清理最老的条目（LRU策略）
   if (SEARCH_CACHE.size > MAX_CACHE_SIZE) {
@@ -123,7 +131,7 @@ function performCacheCleanup(): { expired: number; total: number; sizeLimited: n
   return {
     expired: expiredCount,
     total: SEARCH_CACHE.size,
-    sizeLimited: sizeLimitedDeleted
+    sizeLimited: sizeLimitedDeleted,
   };
 }
 

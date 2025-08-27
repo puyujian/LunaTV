@@ -24,7 +24,10 @@ export interface RedisConnectionConfig {
 }
 
 // 添加Redis操作重试包装器
-function createRetryWrapper(clientName: string, getClient: () => RedisClientType) {
+function createRetryWrapper(
+  clientName: string,
+  getClient: () => RedisClientType
+) {
   return async function withRetry<T>(
     operation: () => Promise<T>,
     maxRetries = 3
@@ -43,7 +46,9 @@ function createRetryWrapper(clientName: string, getClient: () => RedisClientType
 
         if (isConnectionError && !isLastAttempt) {
           console.log(
-            `${clientName} operation failed, retrying... (${i + 1}/${maxRetries})`
+            `${clientName} operation failed, retrying... (${
+              i + 1
+            }/${maxRetries})`
           );
           console.error('Error:', err.message);
 
@@ -72,7 +77,10 @@ function createRetryWrapper(clientName: string, getClient: () => RedisClientType
 }
 
 // 创建客户端的工厂函数
-export function createRedisClient(config: RedisConnectionConfig, globalSymbol: symbol): RedisClientType {
+export function createRedisClient(
+  config: RedisConnectionConfig,
+  globalSymbol: symbol
+): RedisClientType {
   let client: RedisClientType | undefined = (global as any)[globalSymbol];
 
   if (!client) {
@@ -86,9 +94,13 @@ export function createRedisClient(config: RedisConnectionConfig, globalSymbol: s
       socket: {
         // 重连策略：指数退避，最大30秒
         reconnectStrategy: (retries: number) => {
-          console.log(`${config.clientName} reconnection attempt ${retries + 1}`);
+          console.log(
+            `${config.clientName} reconnection attempt ${retries + 1}`
+          );
           if (retries > 10) {
-            console.error(`${config.clientName} max reconnection attempts exceeded`);
+            console.error(
+              `${config.clientName} max reconnection attempts exceeded`
+            );
             return false; // 停止重连
           }
           return Math.min(1000 * Math.pow(2, retries), 30000); // 指数退避，最大30秒
@@ -143,7 +155,10 @@ export function createRedisClient(config: RedisConnectionConfig, globalSymbol: s
 // 抽象基类，包含所有通用的Redis操作逻辑
 export abstract class BaseRedisStorage implements IStorage {
   protected client: RedisClientType;
-  protected withRetry: <T>(operation: () => Promise<T>, maxRetries?: number) => Promise<T>;
+  protected withRetry: <T>(
+    operation: () => Promise<T>,
+    maxRetries?: number
+  ) => Promise<T>;
 
   constructor(config: RedisConnectionConfig, globalSymbol: symbol) {
     this.client = createRedisClient(config, globalSymbol);
@@ -179,7 +194,9 @@ export abstract class BaseRedisStorage implements IStorage {
     userName: string
   ): Promise<Record<string, PlayRecord>> {
     const pattern = `u:${userName}:pr:*`;
-    const keys: string[] = await this.withRetry(() => this.client.keys(pattern));
+    const keys: string[] = await this.withRetry(() =>
+      this.client.keys(pattern)
+    );
     if (keys.length === 0) return {};
     const values = await this.withRetry(() => this.client.mGet(keys));
     const result: Record<string, PlayRecord> = {};
@@ -223,7 +240,9 @@ export abstract class BaseRedisStorage implements IStorage {
 
   async getAllFavorites(userName: string): Promise<Record<string, Favorite>> {
     const pattern = `u:${userName}:fav:*`;
-    const keys: string[] = await this.withRetry(() => this.client.keys(pattern));
+    const keys: string[] = await this.withRetry(() =>
+      this.client.keys(pattern)
+    );
     if (keys.length === 0) return {};
     const values = await this.withRetry(() => this.client.mGet(keys));
     const result: Record<string, Favorite> = {};
@@ -249,7 +268,9 @@ export abstract class BaseRedisStorage implements IStorage {
 
   async registerUser(userName: string, password: string): Promise<void> {
     // 简单存储明文密码，生产环境应加密
-    await this.withRetry(() => this.client.set(this.userPwdKey(userName), password));
+    await this.withRetry(() =>
+      this.client.set(this.userPwdKey(userName), password)
+    );
   }
 
   async verifyUser(userName: string, password: string): Promise<boolean> {
@@ -334,13 +355,17 @@ export abstract class BaseRedisStorage implements IStorage {
     // 插入到最前
     await this.withRetry(() => this.client.lPush(key, ensureString(keyword)));
     // 限制最大长度
-    await this.withRetry(() => this.client.lTrim(key, 0, SEARCH_HISTORY_LIMIT - 1));
+    await this.withRetry(() =>
+      this.client.lTrim(key, 0, SEARCH_HISTORY_LIMIT - 1)
+    );
   }
 
   async deleteSearchHistory(userName: string, keyword?: string): Promise<void> {
     const key = this.shKey(userName);
     if (keyword) {
-      await this.withRetry(() => this.client.lRem(key, 0, ensureString(keyword)));
+      await this.withRetry(() =>
+        this.client.lRem(key, 0, ensureString(keyword))
+      );
     } else {
       await this.withRetry(() => this.client.del(key));
     }
@@ -363,7 +388,9 @@ export abstract class BaseRedisStorage implements IStorage {
   }
 
   async getAdminConfig(): Promise<AdminConfig | null> {
-    const val = await this.withRetry(() => this.client.get(this.adminConfigKey()));
+    const val = await this.withRetry(() =>
+      this.client.get(this.adminConfigKey())
+    );
     return val ? (JSON.parse(val) as AdminConfig) : null;
   }
 
@@ -473,15 +500,21 @@ export abstract class BaseRedisStorage implements IStorage {
     return 'registration:stats';
   }
 
-  async createPendingUser(username: string, hashedPassword: string): Promise<void> {
+  async createPendingUser(
+    username: string,
+    hashedPassword: string
+  ): Promise<void> {
     const pendingUser: PendingUser = {
       username,
       registeredAt: Date.now(),
-      hashedPassword
+      hashedPassword,
     };
-    
+
     await this.withRetry(() =>
-      this.client.set(this.pendingUserKey(username), JSON.stringify(pendingUser))
+      this.client.set(
+        this.pendingUserKey(username),
+        JSON.stringify(pendingUser)
+      )
     );
 
     // 更新今日注册统计
@@ -493,12 +526,14 @@ export abstract class BaseRedisStorage implements IStorage {
 
   async getPendingUsers(): Promise<PendingUser[]> {
     const pattern = 'pending:user:*';
-    const keys: string[] = await this.withRetry(() => this.client.keys(pattern));
+    const keys: string[] = await this.withRetry(() =>
+      this.client.keys(pattern)
+    );
     if (keys.length === 0) return [];
 
     const values = await this.withRetry(() => this.client.mGet(keys));
     const pendingUsers: PendingUser[] = [];
-    
+
     values.forEach((raw) => {
       if (raw) {
         try {
@@ -517,13 +552,13 @@ export abstract class BaseRedisStorage implements IStorage {
     const pendingData = await this.withRetry(() =>
       this.client.get(this.pendingUserKey(username))
     );
-    
+
     if (!pendingData) {
       throw new Error('待审核用户不存在');
     }
 
     const pendingUser: PendingUser = JSON.parse(pendingData);
-    
+
     // 创建正式用户账号（使用加密密码）
     await this.withRetry(() =>
       this.client.set(this.userPwdKey(username), pendingUser.hashedPassword)
@@ -539,7 +574,7 @@ export abstract class BaseRedisStorage implements IStorage {
     const exists = await this.withRetry(() =>
       this.client.exists(this.pendingUserKey(username))
     );
-    
+
     if (exists === 0) {
       throw new Error('待审核用户不存在');
     }
@@ -571,7 +606,7 @@ export abstract class BaseRedisStorage implements IStorage {
       totalUsers,
       maxUsers,
       pendingUsers: pendingCount,
-      todayRegistrations
+      todayRegistrations,
     };
   }
 }

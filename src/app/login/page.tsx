@@ -30,8 +30,8 @@ function LoginPageClient() {
 
     // 获取服务器配置
     fetch('/api/server-config')
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setRegistrationEnabled(data.EnableRegistration || false);
       })
       .catch(() => {
@@ -77,8 +77,6 @@ function LoginPageClient() {
       setLoading(false);
     }
   };
-
-
 
   return (
     <div className='relative min-h-screen flex items-center justify-center px-4 overflow-hidden'>
@@ -135,9 +133,7 @@ function LoginPageClient() {
           {/* 登录按钮 */}
           <button
             type='submit'
-            disabled={
-              !password || loading || (shouldAskUsername && !username)
-            }
+            disabled={!password || loading || (shouldAskUsername && !username)}
             className='inline-flex w-full justify-center rounded-lg bg-green-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-green-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
           >
             {loading ? '登录中...' : '登录'}

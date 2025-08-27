@@ -241,7 +241,10 @@ export class DbManager {
   }
 
   // ---------- 注册相关方法 ----------
-  async createPendingUser(username: string, hashedPassword: string): Promise<void> {
+  async createPendingUser(
+    username: string,
+    hashedPassword: string
+  ): Promise<void> {
     if (typeof (this.storage as any).createPendingUser === 'function') {
       await (this.storage as any).createPendingUser(username, hashedPassword);
     } else {
@@ -279,7 +282,7 @@ export class DbManager {
     return {
       totalUsers: 0,
       pendingUsers: 0,
-      todayRegistrations: 0
+      todayRegistrations: 0,
     };
   }
 }

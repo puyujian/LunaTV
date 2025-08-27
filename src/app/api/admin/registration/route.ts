@@ -8,7 +8,9 @@ import { db } from '@/lib/db';
 export const runtime = 'nodejs';
 
 // 验证管理员权限
-async function verifyAdminAccess(request: NextRequest): Promise<{ authorized: boolean; message?: string }> {
+async function verifyAdminAccess(
+  request: NextRequest
+): Promise<{ authorized: boolean; message?: string }> {
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo) {
     return { authorized: false, message: '未登录' };
@@ -21,7 +23,9 @@ async function verifyAdminAccess(request: NextRequest): Promise<{ authorized: bo
 
   // 检查是否是管理员用户
   const config = await getConfig();
-  const user = config.UserConfig.Users.find(u => u.username === authInfo.username);
+  const user = config.UserConfig.Users.find(
+    (u) => u.username === authInfo.username
+  );
   if (user && (user.role === 'admin' || user.role === 'owner')) {
     return { authorized: true };
   }
@@ -48,9 +52,8 @@ export async function GET(req: NextRequest) {
         maxUsers: config.SiteConfig.MaxUsers,
       },
       pendingUsers,
-      stats
+      stats,
     });
-
   } catch (error) {
     console.error('获取注册管理信息失败:', error);
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
@@ -73,22 +76,23 @@ export async function POST(req: NextRequest) {
       }
 
       await db.approvePendingUser(username);
-      
+
       // 将用户添加到配置中
       const config = await getConfig();
-      const existingUser = config.UserConfig.Users.find(u => u.username === username);
+      const existingUser = config.UserConfig.Users.find(
+        (u) => u.username === username
+      );
       if (!existingUser) {
         config.UserConfig.Users.push({
           username,
           role: 'user',
           status: 'active',
-          registeredAt: Date.now()
+          registeredAt: Date.now(),
         });
         await db.saveAdminConfig(config);
       }
 
       return NextResponse.json({ message: `用户 ${username} 审核通过` });
-
     } else if (action === 'reject') {
       if (!username) {
         return NextResponse.json({ error: '用户名不能为空' }, { status: 400 });
@@ -96,18 +100,20 @@ export async function POST(req: NextRequest) {
 
       await db.rejectPendingUser(username);
       return NextResponse.json({ message: `用户 ${username} 申请已拒绝` });
-
     } else if (action === 'updateSettings') {
       if (!settings) {
-        return NextResponse.json({ error: '设置信息不能为空' }, { status: 400 });
+        return NextResponse.json(
+          { error: '设置信息不能为空' },
+          { status: 400 }
+        );
       }
 
       const config = await getConfig();
-      
+
       // 更新注册相关设置
       config.SiteConfig.EnableRegistration = settings.enableRegistration;
       config.SiteConfig.RegistrationApproval = settings.registrationApproval;
-      
+
       if (typeof settings.maxUsers === 'number' && settings.maxUsers > 0) {
         config.SiteConfig.MaxUsers = settings.maxUsers;
       } else {
@@ -116,11 +122,13 @@ export async function POST(req: NextRequest) {
 
       await db.saveAdminConfig(config);
       return NextResponse.json({ message: '注册设置已更新' });
-
     } else if (action === 'batchApprove') {
       const { usernames } = await req.json();
       if (!Array.isArray(usernames) || usernames.length === 0) {
-        return NextResponse.json({ error: '用户列表不能为空' }, { status: 400 });
+        return NextResponse.json(
+          { error: '用户列表不能为空' },
+          { status: 400 }
+        );
       }
 
       let successCount = 0;
@@ -129,35 +137,39 @@ export async function POST(req: NextRequest) {
       for (const username of usernames) {
         try {
           await db.approvePendingUser(username);
-          
+
           // 将用户添加到配置中
           const config = await getConfig();
-          const existingUser = config.UserConfig.Users.find(u => u.username === username);
+          const existingUser = config.UserConfig.Users.find(
+            (u) => u.username === username
+          );
           if (!existingUser) {
             config.UserConfig.Users.push({
               username,
               role: 'user',
               status: 'active',
-              registeredAt: Date.now()
+              registeredAt: Date.now(),
             });
             await db.saveAdminConfig(config);
           }
-          
+
           successCount++;
         } catch (error) {
           errors.push(`${username}: ${error}`);
         }
       }
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         message: `批量操作完成，成功: ${successCount}，失败: ${errors.length}`,
-        errors 
+        errors,
       });
-
     } else if (action === 'batchReject') {
       const { usernames } = await req.json();
       if (!Array.isArray(usernames) || usernames.length === 0) {
-        return NextResponse.json({ error: '用户列表不能为空' }, { status: 400 });
+        return NextResponse.json(
+          { error: '用户列表不能为空' },
+          { status: 400 }
+        );
       }
 
       let successCount = 0;
@@ -172,15 +184,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         message: `批量拒绝完成，成功: ${successCount}，失败: ${errors.length}`,
-        errors 
+        errors,
       });
-
     } else {
       return NextResponse.json({ error: '无效的操作类型' }, { status: 400 });
     }
-
   } catch (error) {
     console.error('注册管理操作失败:', error);
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
@@ -211,10 +221,9 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ 
-      message: `已清理 ${cleanedCount} 个过期的待审核用户` 
+    return NextResponse.json({
+      message: `已清理 ${cleanedCount} 个过期的待审核用户`,
     });
-
   } catch (error) {
     console.error('清理过期用户失败:', error);
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });

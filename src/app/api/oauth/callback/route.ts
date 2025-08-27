@@ -13,6 +13,8 @@ export const runtime = 'nodejs';
  */
 export async function GET(req: NextRequest) {
   try {
+    console.log('OAuth 回调开始处理:', req.url);
+
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
@@ -40,25 +42,65 @@ export async function GET(req: NextRequest) {
       return redirectToLogin('授权状态验证失败，可能存在安全风险', req);
     }
 
-    const config = await getConfig();
+    console.log('OAuth 参数验证成功，获取配置...');
+
+    let config;
+    try {
+      config = await getConfig();
+    } catch (configError) {
+      console.error('获取配置失败:', configError);
+      return redirectToLogin('系统配置加载失败，请稍后重试', req);
+    }
+
+    if (!config || !config.SiteConfig) {
+      console.error('配置结构异常:', {
+        hasConfig: !!config,
+        hasSiteConfig: !!config?.SiteConfig,
+      });
+      return redirectToLogin('系统配置异常，请联系管理员', req);
+    }
+
     const oauthConfig = config.SiteConfig.LinuxDoOAuth;
 
     // 检查 OAuth 功能是否启用
-    if (!oauthConfig.enabled) {
-      return redirectToLogin('LinuxDo OAuth 功能已禁用', req);
+    if (!oauthConfig || !oauthConfig.enabled) {
+      console.error('OAuth 配置问题:', {
+        hasOAuthConfig: !!oauthConfig,
+        enabled: oauthConfig?.enabled,
+      });
+      return redirectToLogin('LinuxDo OAuth 功能未启用或配置异常', req);
     }
+
+    if (!oauthConfig.clientId || !oauthConfig.clientSecret) {
+      console.error('OAuth 客户端配置缺失:', {
+        hasClientId: !!oauthConfig.clientId,
+        hasClientSecret: !!oauthConfig.clientSecret,
+      });
+      return redirectToLogin('OAuth 客户端配置不完整，请联系管理员', req);
+    }
+
+    console.log('OAuth 配置验证通过，开始令牌交换...');
 
     // 1. 用授权码换取访问令牌
     const tokenData = await exchangeCodeForToken(code, req, oauthConfig);
     if (!tokenData) {
+      console.error('令牌交换失败');
       return redirectToLogin('获取访问令牌失败', req);
     }
+
+    console.log('令牌交换成功，获取用户信息...');
 
     // 2. 使用访问令牌获取用户信息
     const userInfo = await fetchUserInfo(tokenData.access_token, oauthConfig);
     if (!userInfo) {
+      console.error('用户信息获取失败');
       return redirectToLogin('获取用户信息失败', req);
     }
+
+    console.log('用户信息获取成功:', {
+      username: userInfo.username,
+      trustLevel: userInfo.trust_level,
+    });
 
     // 3. 验证用户状态和信任等级
     if (!userInfo.active) {
@@ -77,13 +119,27 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. 查找或创建用户
-    const username = await findOrCreateUser(userInfo, oauthConfig, config);
-    if (!username) {
-      return redirectToLogin('用户创建或查找失败', req);
+    let username;
+    try {
+      username = await findOrCreateUser(userInfo, oauthConfig, config);
+      if (!username) {
+        console.error('用户创建或查找失败: findOrCreateUser 返回 null');
+        return redirectToLogin('用户创建或查找失败', req);
+      }
+      console.log('用户处理成功:', username);
+    } catch (userError) {
+      console.error('用户创建或查找过程出错:', userError);
+      return redirectToLogin('用户处理失败，请稍后重试', req);
     }
 
     // 5. 生成认证 Cookie 并登录
-    const authCookie = await generateAuthCookie(username, 'user');
+    let authCookie;
+    try {
+      authCookie = await generateAuthCookie(username, 'user');
+    } catch (authError) {
+      console.error('生成认证 Cookie 失败:', authError);
+      return redirectToLogin('认证失败，请稍后重试', req);
+    }
     const baseUrl = getBaseUrl(req);
     const response = NextResponse.redirect(new URL('/', baseUrl));
 
@@ -108,6 +164,16 @@ export async function GET(req: NextRequest) {
     return response;
   } catch (error) {
     console.error('OAuth 回调处理失败:', error);
+
+    // 记录更详细的错误信息
+    if (error instanceof Error) {
+      console.error('错误详情:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      });
+    }
+
     return redirectToLogin('登录过程中发生错误，请稍后重试', req);
   }
 }
@@ -189,6 +255,11 @@ async function findOrCreateUser(
   config: any
 ): Promise<string | null> {
   try {
+    console.log('开始查找或创建用户:', {
+      linuxdoId: userInfo.id,
+      username: userInfo.username,
+    });
+
     // 首先查找是否存在相同 LinuxDo ID 的用户
     const existingUsers = config.UserConfig.Users;
     const existingUser = existingUsers.find(
@@ -196,10 +267,17 @@ async function findOrCreateUser(
     );
 
     if (existingUser) {
+      console.log('找到现有用户:', existingUser.username);
       // 更新用户的 LinuxDo 信息
       existingUser.linuxdoUsername = userInfo.username;
-      await setCachedConfig(config);
-      await db.saveAdminConfig(config);
+      try {
+        await setCachedConfig(config);
+        await db.saveAdminConfig(config);
+        console.log('更新现有用户信息成功');
+      } catch (updateError) {
+        console.error('更新用户信息失败:', updateError);
+        // 继续流程，不阻断登录
+      }
       return existingUser.username;
     }
 
@@ -209,6 +287,8 @@ async function findOrCreateUser(
       return null;
     }
 
+    console.log('开始自动注册新用户...');
+
     // 生成唯一用户名
     const baseUsername = `linuxdo_${userInfo.username}`;
     let username = baseUsername;
@@ -217,14 +297,27 @@ async function findOrCreateUser(
     while (await db.checkUserExist(username)) {
       username = `${baseUsername}_${counter}`;
       counter++;
+      if (counter > 100) {
+        // 防止无限循环
+        console.error('生成唯一用户名失败，尝试次数过多');
+        throw new Error('无法生成唯一用户名');
+      }
     }
+
+    console.log('生成用户名:', username);
 
     // 生成随机密码用于数据库存储
     const password = generateRandomPassword();
     const hashedPassword = await hashPassword(password);
 
     // 注册新用户
-    await db.registerUser(username, hashedPassword);
+    try {
+      await db.registerUser(username, hashedPassword);
+      console.log('数据库用户注册成功');
+    } catch (dbError) {
+      console.error('数据库用户注册失败:', dbError);
+      throw new Error('数据库用户注册失败');
+    }
 
     // 更新配置中的用户信息
     config.UserConfig.Users.push({
@@ -237,11 +330,23 @@ async function findOrCreateUser(
       linuxdoUsername: userInfo.username,
     });
 
-    await setCachedConfig(config);
-    await db.saveAdminConfig(config);
+    try {
+      await setCachedConfig(config);
+      await db.saveAdminConfig(config);
+      console.log('配置更新成功');
+    } catch (configError) {
+      console.error('配置更新失败:', configError);
+      // 尝试清理已创建的用户
+      try {
+        await db.deleteUser(username);
+      } catch (cleanupError) {
+        console.error('清理用户失败:', cleanupError);
+      }
+      throw new Error('配置更新失败');
+    }
 
     console.log(
-      '自动创建 LinuxDo 用户:',
+      '自动创建 LinuxDo 用户成功:',
       username,
       '(原用户名:',
       userInfo.username,

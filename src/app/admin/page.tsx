@@ -2027,7 +2027,7 @@ interface RegistrationConfigProps {
   refreshConfig: () => Promise<void>;
 }
 
-const RegistrationConfig = ({ config, role, refreshConfig }: RegistrationConfigProps) => {
+const RegistrationConfig = ({ config: _config, role: _role, refreshConfig }: RegistrationConfigProps) => {
   const { alertModal, showAlert, hideAlert } = useAlertModal();
   const { isLoading, withLoading } = useLoadingState();
   const [registrationData, setRegistrationData] = useState<{
@@ -2048,7 +2048,7 @@ const RegistrationConfig = ({ config, role, refreshConfig }: RegistrationConfigP
       setRegistrationData(data);
     } catch (error) {
       console.error('获取注册数据失败:', error);
-      showAlert('获取注册数据失败');
+      showAlert({ type: 'error', title: '错误', message: '获取注册数据失败' });
     }
   };
 
@@ -2073,11 +2073,11 @@ const RegistrationConfig = ({ config, role, refreshConfig }: RegistrationConfigP
           throw new Error('Failed to update settings');
         }
 
-        showAlert('注册设置已更新', 2000);
+        showAlert({ type: 'success', title: '成功', message: '注册设置已更新', timer: 2000 });
         await Promise.all([refreshConfig(), fetchRegistrationData()]);
       } catch (error) {
         console.error('更新注册设置失败:', error);
-        showAlert('更新注册设置失败');
+        showAlert({ type: 'error', title: '错误', message: '更新注册设置失败' });
       }
     });
   };
@@ -2099,11 +2099,11 @@ const RegistrationConfig = ({ config, role, refreshConfig }: RegistrationConfigP
           throw new Error('Failed to approve user');
         }
 
-        showAlert(`用户 ${username} 审核通过`, 2000);
+        showAlert({ type: 'success', title: '成功', message: `用户 ${username} 审核通过`, timer: 2000 });
         await Promise.all([refreshConfig(), fetchRegistrationData()]);
       } catch (error) {
         console.error('批准用户失败:', error);
-        showAlert(`批准用户 ${username} 失败`);
+        showAlert({ type: 'error', title: '错误', message: `批准用户 ${username} 失败` });
       }
     });
   };
@@ -2125,11 +2125,11 @@ const RegistrationConfig = ({ config, role, refreshConfig }: RegistrationConfigP
           throw new Error('Failed to reject user');
         }
 
-        showAlert(`用户 ${username} 申请已拒绝`, 2000);
+        showAlert({ type: 'success', title: '成功', message: `用户 ${username} 申请已拒绝`, timer: 2000 });
         await fetchRegistrationData();
       } catch (error) {
         console.error('拒绝用户失败:', error);
-        showAlert(`拒绝用户 ${username} 失败`);
+        showAlert({ type: 'error', title: '错误', message: `拒绝用户 ${username} 失败` });
       }
     });
   };
@@ -2137,7 +2137,7 @@ const RegistrationConfig = ({ config, role, refreshConfig }: RegistrationConfigP
   // 批量操作
   const handleBatchOperation = async (action: 'approve' | 'reject') => {
     if (selectedPendingUsers.length === 0) {
-      showAlert('请选择要操作的用户');
+      showAlert({ type: 'warning', title: '提示', message: '请选择要操作的用户' });
       return;
     }
 
@@ -2157,12 +2157,12 @@ const RegistrationConfig = ({ config, role, refreshConfig }: RegistrationConfigP
         }
 
         const result = await response.json();
-        showAlert(result.message, 3000);
+        showAlert({ type: 'success', title: '成功', message: result.message, timer: 3000 });
         setSelectedPendingUsers([]);
         await Promise.all([refreshConfig(), fetchRegistrationData()]);
       } catch (error) {
         console.error(`批量${action === 'approve' ? '批准' : '拒绝'}用户失败:`, error);
-        showAlert(`批量操作失败`);
+        showAlert({ type: 'error', title: '错误', message: '批量操作失败' });
       }
     });
   };
@@ -4871,8 +4871,6 @@ function AdminPageClient() {
   const [showResetConfigModal, setShowResetConfigModal] = useState(false);
   
   // 注册管理相关状态
-  const [registrationData, setRegistrationData] = useState<any>(null);
-  const [selectedPendingUsers, setSelectedPendingUsers] = useState<string[]>([]);
   const [storageType, setStorageType] = useState<string>('localstorage');
   const [expandedTabs, setExpandedTabs] = useState<{ [key: string]: boolean }>({
     userConfig: false,

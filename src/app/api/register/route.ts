@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { 
           success: false, 
-          message: usernameValidation.message! 
+          message: usernameValidation.message || '用户名验证失败' 
         } as RegisterResponse,
         { status: 400 }
       );
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { 
           success: false, 
-          message: passwordValidation.message! 
+          message: passwordValidation.message || '密码验证失败' 
         } as RegisterResponse,
         { status: 400 }
       );

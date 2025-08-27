@@ -241,12 +241,9 @@ export class DbManager {
   }
 
   // ---------- 注册相关方法 ----------
-  async createPendingUser(
-    username: string,
-    hashedPassword: string
-  ): Promise<void> {
+  async createPendingUser(username: string, password: string): Promise<void> {
     if (typeof (this.storage as any).createPendingUser === 'function') {
-      await (this.storage as any).createPendingUser(username, hashedPassword);
+      await (this.storage as any).createPendingUser(username, password);
     } else {
       throw new Error('存储类型不支持注册功能');
     }

@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: authCheck.message }, { status: 401 });
     }
 
-    const { action, username, settings } = await req.json();
+    const { action, username, settings, usernames } = await req.json();
 
     if (action === 'approve') {
       if (!username) {
@@ -123,7 +123,6 @@ export async function POST(req: NextRequest) {
       await db.saveAdminConfig(config);
       return NextResponse.json({ message: '注册设置已更新' });
     } else if (action === 'batchApprove') {
-      const { usernames } = await req.json();
       if (!Array.isArray(usernames) || usernames.length === 0) {
         return NextResponse.json(
           { error: '用户列表不能为空' },
@@ -133,13 +132,14 @@ export async function POST(req: NextRequest) {
 
       let successCount = 0;
       const errors = [];
+      const config = await getConfig();
+      let configModified = false;
 
       for (const username of usernames) {
         try {
           await db.approvePendingUser(username);
 
-          // 将用户添加到配置中
-          const config = await getConfig();
+          // 检查是否需要添加用户到配置中
           const existingUser = config.UserConfig.Users.find(
             (u) => u.username === username
           );
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
               status: 'active',
               registeredAt: Date.now(),
             });
-            await db.saveAdminConfig(config);
+            configModified = true;
           }
 
           successCount++;
@@ -159,12 +159,16 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // 只在配置有变化时才保存
+      if (configModified) {
+        await db.saveAdminConfig(config);
+      }
+
       return NextResponse.json({
         message: `批量操作完成，成功: ${successCount}，失败: ${errors.length}`,
         errors,
       });
     } else if (action === 'batchReject') {
-      const { usernames } = await req.json();
       if (!Array.isArray(usernames) || usernames.length === 0) {
         return NextResponse.json(
           { error: '用户列表不能为空' },

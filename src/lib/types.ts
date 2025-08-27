@@ -85,7 +85,7 @@ export interface IStorage {
   clearAllData(): Promise<void>;
 
   // 注册相关方法
-  createPendingUser(username: string, hashedPassword: string): Promise<void>;
+  createPendingUser(username: string, password: string): Promise<void>;
   getPendingUsers(): Promise<PendingUser[]>;
   approvePendingUser(username: string): Promise<void>;
   rejectPendingUser(username: string): Promise<void>;

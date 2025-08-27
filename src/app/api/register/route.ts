@@ -7,15 +7,6 @@ import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
-// 密码加密工具函数
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 // 验证用户名格式
 function validateUsername(username: string): {
   valid: boolean;
@@ -168,13 +159,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 加密密码
-    const hashedPassword = await hashPassword(password);
-
     // 根据配置决定是直接注册还是待审核
     if (config.SiteConfig.RegistrationApproval) {
-      // 需要审核，创建待审核用户
-      await db.createPendingUser(username, hashedPassword);
+      // 需要审核，创建待审核用户（存储明文密码，与现有系统保持一致）
+      await db.createPendingUser(username, password);
 
       return NextResponse.json({
         success: true,
@@ -182,8 +170,8 @@ export async function POST(req: NextRequest) {
         needsApproval: true,
       } as RegisterResponse);
     } else {
-      // 直接注册
-      await db.registerUser(username, hashedPassword);
+      // 直接注册（存储明文密码，与现有系统保持一致）
+      await db.registerUser(username, password);
 
       return NextResponse.json({
         success: true,

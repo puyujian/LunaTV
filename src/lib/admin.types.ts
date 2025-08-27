@@ -109,7 +109,7 @@ export interface AdminConfigResult {
 export interface PendingUser {
   username: string;
   registeredAt: number;
-  hashedPassword: string; // 存储加密后的密码
+  password: string; // 存储明文密码，与主系统保持一致
 }
 
 // 注册响应类型

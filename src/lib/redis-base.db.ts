@@ -500,14 +500,11 @@ export abstract class BaseRedisStorage implements IStorage {
     return 'registration:stats';
   }
 
-  async createPendingUser(
-    username: string,
-    hashedPassword: string
-  ): Promise<void> {
+  async createPendingUser(username: string, password: string): Promise<void> {
     const pendingUser: PendingUser = {
       username,
       registeredAt: Date.now(),
-      hashedPassword,
+      password: password, // 存储明文密码，与主系统保持一致
     };
 
     await this.withRetry(() =>
@@ -559,9 +556,9 @@ export abstract class BaseRedisStorage implements IStorage {
 
     const pendingUser: PendingUser = JSON.parse(pendingData);
 
-    // 创建正式用户账号（使用加密密码）
+    // 创建正式用户账号（使用明文密码）
     await this.withRetry(() =>
-      this.client.set(this.userPwdKey(username), pendingUser.hashedPassword)
+      this.client.set(this.userPwdKey(username), pendingUser.password)
     );
 
     // 删除待审核记录

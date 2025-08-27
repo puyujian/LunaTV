@@ -377,13 +377,10 @@ export class UpstashRedisStorage implements IStorage {
     return 'admin:registration_stats';
   }
 
-  async createPendingUser(
-    username: string,
-    hashedPassword: string
-  ): Promise<void> {
+  async createPendingUser(username: string, password: string): Promise<void> {
     const pendingUser: PendingUser = {
       username,
-      hashedPassword,
+      password: password, // 存储明文密码，与主系统保持一致
       registeredAt: Date.now(),
     };
 
@@ -418,8 +415,8 @@ export class UpstashRedisStorage implements IStorage {
 
     const pendingUser: PendingUser = JSON.parse(ensureString(pendingUserData));
 
-    // 创建正式用户
-    await this.registerUser(username, pendingUser.hashedPassword);
+    // 创建正式用户（使用明文密码）
+    await this.registerUser(username, pendingUser.password);
 
     // 删除待审核用户记录
     await withRetry(() => this.client.hdel(this.pendingUsersKey(), username));

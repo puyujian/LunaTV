@@ -308,11 +308,10 @@ async function findOrCreateUser(
 
     // 生成随机密码用于数据库存储
     const password = generateRandomPassword();
-    const hashedPassword = await hashPassword(password);
 
-    // 注册新用户
+    // 注册新用户（使用明文密码，与现有系统保持一致）
     try {
-      await db.registerUser(username, hashedPassword);
+      await db.registerUser(username, password);
       console.log('数据库用户注册成功');
     } catch (dbError) {
       console.error('数据库用户注册失败:', dbError);
@@ -404,17 +403,6 @@ async function generateSignature(
   return Array.from(new Uint8Array(signature))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
-}
-
-/**
- * 密码哈希
- */
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**

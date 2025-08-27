@@ -2381,7 +2381,10 @@ const RegistrationConfig = ({ config: _config, role: _role, refreshConfig }: Reg
 
       {alertModal.isOpen && (
         <AlertModal
+          isOpen={alertModal.isOpen}
           onClose={hideAlert}
+          type={alertModal.type}
+          title={alertModal.title}
           message={alertModal.message}
           timer={alertModal.timer}
           showConfirm={alertModal.showConfirm}

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { LinuxDoUserInfo, OAuthTokenResponse } from '@/lib/admin.types';
-import { getConfig, setCachedConfig } from '@/lib/config';
+import { getConfig, saveAndCacheConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -271,8 +271,7 @@ async function findOrCreateUser(
       // 更新用户的 LinuxDo 信息
       existingUser.linuxdoUsername = userInfo.username;
       try {
-        await setCachedConfig(config);
-        await db.saveAdminConfig(config);
+        await saveAndCacheConfig(config);
         console.log('更新现有用户信息成功');
       } catch (updateError) {
         console.error('更新用户信息失败:', updateError);
@@ -323,15 +322,12 @@ async function findOrCreateUser(
       username,
       role: oauthConfig.defaultRole,
       banned: false,
-      status: 'active',
-      registeredAt: Date.now(),
       linuxdoId: userInfo.id,
       linuxdoUsername: userInfo.username,
     });
 
     try {
-      await setCachedConfig(config);
-      await db.saveAdminConfig(config);
+      await saveAndCacheConfig(config);
       console.log('配置更新成功');
     } catch (configError) {
       console.error('配置更新失败:', configError);

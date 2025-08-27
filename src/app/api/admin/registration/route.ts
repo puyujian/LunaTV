@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getConfig, saveAndCacheConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -86,10 +86,9 @@ export async function POST(req: NextRequest) {
         config.UserConfig.Users.push({
           username,
           role: 'user',
-          status: 'active',
-          registeredAt: Date.now(),
+          banned: false,
         });
-        await db.saveAdminConfig(config);
+        await saveAndCacheConfig(config);
       }
 
       return NextResponse.json({ message: `用户 ${username} 审核通过` });
@@ -147,8 +146,7 @@ export async function POST(req: NextRequest) {
             config.UserConfig.Users.push({
               username,
               role: 'user',
-              status: 'active',
-              registeredAt: Date.now(),
+              banned: false,
             });
             configModified = true;
           }
@@ -161,7 +159,7 @@ export async function POST(req: NextRequest) {
 
       // 只在配置有变化时才保存
       if (configModified) {
-        await db.saveAdminConfig(config);
+        await saveAndCacheConfig(config);
       }
 
       return NextResponse.json({

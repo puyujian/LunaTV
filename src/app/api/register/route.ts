@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { RegisterResponse } from '@/lib/admin.types';
-import { getConfig } from '@/lib/config';
+import { getConfig, saveAndCacheConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -172,6 +172,33 @@ export async function POST(req: NextRequest) {
     } else {
       // 直接注册（存储明文密码，与现有系统保持一致）
       await db.registerUser(username, password);
+
+      // 立即将用户信息同步到管理员配置中
+      try {
+        const currentConfig = await getConfig();
+
+        // 检查用户是否已存在于配置中（防止重复添加）
+        const existingUser = currentConfig.UserConfig.Users.find(
+          (u) => u.username === username
+        );
+
+        if (!existingUser) {
+          // 添加新用户到配置中
+          currentConfig.UserConfig.Users.push({
+            username: username,
+            role: 'user',
+            banned: false,
+          });
+
+          // 保存更新后的配置并同步缓存
+          await saveAndCacheConfig(currentConfig);
+
+          console.log(`新用户 ${username} 已同步到管理员配置`);
+        }
+      } catch (syncError) {
+        console.error('同步用户到管理员配置失败:', syncError);
+        // 注册已成功，同步失败不影响用户注册结果
+      }
 
       return NextResponse.json({
         success: true,

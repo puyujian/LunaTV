@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getConfig, setCachedConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -87,8 +87,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 更新缓存中的站点设置
+    // 更新缓存中的站点设置（保留 OAuth 配置）
     adminConfig.SiteConfig = {
+      ...adminConfig.SiteConfig,
       SiteName,
       Announcement,
       SearchDownstreamMaxPage,
@@ -103,7 +104,8 @@ export async function POST(request: NextRequest) {
       RegistrationApproval,
     };
 
-    // 写入数据库
+    // 写入数据库和缓存
+    await setCachedConfig(adminConfig);
     await db.saveAdminConfig(adminConfig);
 
     return NextResponse.json(

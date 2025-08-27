@@ -225,6 +225,17 @@ async function getInitConfig(
       MaxUsers: process.env.MAX_USERS
         ? Number(process.env.MAX_USERS)
         : undefined,
+      LinuxDoOAuth: {
+        enabled: false,
+        autoRegister: false,
+        minTrustLevel: 3,
+        defaultRole: 'user',
+        clientId: '',
+        clientSecret: '',
+        authorizeUrl: 'https://connect.linux.do/oauth2/authorize',
+        tokenUrl: 'https://connect.linux.do/oauth2/token',
+        userInfoUrl: 'https://connect.linux.do/api/user',
+      },
     },
     UserConfig: {
       Users: [],
@@ -344,6 +355,21 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   }
   if (!adminConfig.LiveConfig || !Array.isArray(adminConfig.LiveConfig)) {
     adminConfig.LiveConfig = [];
+  }
+
+  // 确保 OAuth 配置存在
+  if (!adminConfig.SiteConfig.LinuxDoOAuth) {
+    adminConfig.SiteConfig.LinuxDoOAuth = {
+      enabled: false,
+      autoRegister: false,
+      minTrustLevel: 3,
+      defaultRole: 'user',
+      clientId: '',
+      clientSecret: '',
+      authorizeUrl: 'https://connect.linux.do/oauth2/authorize',
+      tokenUrl: 'https://connect.linux.do/oauth2/token',
+      userInfoUrl: 'https://connect.linux.do/api/user',
+    };
   }
 
   // 站长变更自检

@@ -19,6 +19,8 @@ function LoginPageClient() {
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [storageType, setStorageType] = useState<string>('localstorage');
+  const [oauthEnabled, setOauthEnabled] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
 
   const { siteName } = useSite();
 
@@ -33,17 +35,25 @@ function LoginPageClient() {
         setShouldAskUsername(
           data.StorageType && data.StorageType !== 'localstorage'
         );
+        setOauthEnabled(data.LinuxDoOAuth?.enabled || false);
       })
       .catch(() => {
         setRegistrationEnabled(false);
         setStorageType('localstorage');
         setShouldAskUsername(false);
+        setOauthEnabled(false);
       });
 
-    // 检查 URL 参数中的成功消息
+    // 检查 URL 参数中的成功消息和 OAuth 错误
     const message = searchParams.get('message');
+    const oauthErrorParam = searchParams.get('oauth_error');
+
     if (message === 'registration-success') {
       setSuccessMessage('注册成功！请使用您的用户名和密码登录。');
+    }
+
+    if (oauthErrorParam) {
+      setOauthError(decodeURIComponent(oauthErrorParam));
     }
   }, [searchParams]);
 
@@ -78,6 +88,11 @@ function LoginPageClient() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOAuthLogin = () => {
+    // 跳转到 OAuth 授权页面
+    window.location.href = '/api/oauth/authorize';
   };
 
   return (
@@ -128,8 +143,49 @@ function LoginPageClient() {
             </p>
           )}
 
+          {oauthError && (
+            <p className='text-sm text-red-600 dark:text-red-400 p-3 rounded-lg bg-red-50 dark:bg-red-900/20'>
+              {oauthError}
+            </p>
+          )}
+
           {error && (
             <p className='text-sm text-red-600 dark:text-red-400'>{error}</p>
+          )}
+
+          {/* LinuxDo OAuth 登录按钮 */}
+          {oauthEnabled && (
+            <>
+              <button
+                type='button'
+                onClick={handleOAuthLogin}
+                className='inline-flex w-full justify-center items-center gap-3 rounded-lg bg-blue-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700'
+              >
+                <svg
+                  className='w-5 h-5'
+                  viewBox='0 0 24 24'
+                  fill='currentColor'
+                >
+                  <path
+                    d='M12 2L2 7L12 12L22 7L12 2ZM2 17L12 22L22 17M2 12L12 17L22 12'
+                    stroke='currentColor'
+                    strokeWidth='2'
+                    fill='none'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                  />
+                </svg>
+                使用 LinuxDo 登录
+              </button>
+
+              <div className='flex items-center'>
+                <div className='flex-1 border-t border-gray-300 dark:border-gray-600'></div>
+                <div className='px-3 text-sm text-gray-500 dark:text-gray-400'>
+                  或者
+                </div>
+                <div className='flex-1 border-t border-gray-300 dark:border-gray-600'></div>
+              </div>
+            </>
           )}
 
           {/* 登录按钮 */}

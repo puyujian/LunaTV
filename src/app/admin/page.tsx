@@ -32,6 +32,7 @@ import {
   ExternalLink,
   FileText,
   FolderOpen,
+  KeyRound,
   Settings,
   Tv,
   UserCheck,
@@ -5110,6 +5111,292 @@ const SiteConfigComponent = ({
   );
 };
 
+// OAuth 配置组件
+const OAuthConfigComponent = ({
+  config,
+  refreshConfig,
+}: {
+  config: AdminConfig | null;
+  refreshConfig: () => Promise<void>;
+}) => {
+  const { alertModal, showAlert, hideAlert } = useAlertModal();
+  const { isLoading, withLoading } = useLoadingState();
+  const [oauthSettings, setOauthSettings] = useState({
+    enabled: false,
+    autoRegister: false,
+    minTrustLevel: 3,
+    defaultRole: 'user' as 'user' | 'admin',
+    clientId: '',
+    clientSecret: '',
+    redirectUri: '',
+  });
+
+  // 加载 OAuth 配置
+  useEffect(() => {
+    if (config?.SiteConfig.LinuxDoOAuth) {
+      const oauth = config.SiteConfig.LinuxDoOAuth;
+      setOauthSettings({
+        enabled: oauth.enabled,
+        autoRegister: oauth.autoRegister,
+        minTrustLevel: oauth.minTrustLevel,
+        defaultRole: oauth.defaultRole,
+        clientId: oauth.clientId,
+        clientSecret: oauth.clientSecret || '',
+        redirectUri: oauth.redirectUri || '',
+      });
+    }
+  }, [config]);
+
+  // 保存 OAuth 配置
+  const handleSaveOAuth = async () => {
+    await withLoading('saveOAuth', async () => {
+      try {
+        const response = await fetch('/api/admin/oauth', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(oauthSettings),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || '保存失败');
+        }
+
+        showAlert({
+          type: 'success',
+          title: '成功',
+          message: 'OAuth 配置已保存',
+          timer: 2000,
+        });
+        await refreshConfig();
+      } catch (error) {
+        console.error('保存 OAuth 配置失败:', error);
+        showAlert({
+          type: 'error',
+          title: '错误',
+          message: '保存配置失败: ' + (error as Error).message,
+          showConfirm: true,
+        });
+        throw error;
+      }
+    });
+  };
+
+  if (!config) {
+    return (
+      <div className='text-center text-gray-500 dark:text-gray-400'>
+        加载中...
+      </div>
+    );
+  }
+
+  return (
+    <div className='space-y-6'>
+      <div className='flex items-center justify-between'>
+        <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+          LinuxDo OAuth 登录配置
+        </h3>
+        <button
+          onClick={handleSaveOAuth}
+          disabled={isLoading('saveOAuth')}
+          className={
+            isLoading('saveOAuth')
+              ? buttonStyles.disabled
+              : buttonStyles.success
+          }
+        >
+          {isLoading('saveOAuth') ? '保存中...' : '保存配置'}
+        </button>
+      </div>
+
+      {/* 基础开关 */}
+      <div className='space-y-4'>
+        <div className='flex items-center space-x-3'>
+          <input
+            type='checkbox'
+            id='oauth-enabled'
+            checked={oauthSettings.enabled}
+            onChange={(e) =>
+              setOauthSettings((prev) => ({
+                ...prev,
+                enabled: e.target.checked,
+              }))
+            }
+            className='h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded'
+          />
+          <label
+            htmlFor='oauth-enabled'
+            className='text-sm font-medium text-gray-700 dark:text-gray-300'
+          >
+            启用 LinuxDo OAuth 登录
+          </label>
+        </div>
+
+        <div className='flex items-center space-x-3'>
+          <input
+            type='checkbox'
+            id='oauth-auto-register'
+            checked={oauthSettings.autoRegister}
+            onChange={(e) =>
+              setOauthSettings((prev) => ({
+                ...prev,
+                autoRegister: e.target.checked,
+              }))
+            }
+            className='h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded'
+          />
+          <label
+            htmlFor='oauth-auto-register'
+            className='text-sm font-medium text-gray-700 dark:text-gray-300'
+          >
+            自动注册新用户
+          </label>
+        </div>
+      </div>
+
+      {/* OAuth 应用配置 */}
+      <div className='space-y-4'>
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            应用 ID (Client ID) *
+          </label>
+          <input
+            type='text'
+            value={oauthSettings.clientId}
+            onChange={(e) =>
+              setOauthSettings((prev) => ({
+                ...prev,
+                clientId: e.target.value,
+              }))
+            }
+            placeholder='LinuxDo OAuth 应用的 Client ID'
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+          />
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            应用密钥 (Client Secret) *
+          </label>
+          <input
+            type='password'
+            value={oauthSettings.clientSecret}
+            onChange={(e) =>
+              setOauthSettings((prev) => ({
+                ...prev,
+                clientSecret: e.target.value,
+              }))
+            }
+            placeholder='LinuxDo OAuth 应用的 Client Secret'
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+          />
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            回调地址 (可选)
+          </label>
+          <input
+            type='url'
+            value={oauthSettings.redirectUri}
+            onChange={(e) =>
+              setOauthSettings((prev) => ({
+                ...prev,
+                redirectUri: e.target.value,
+              }))
+            }
+            placeholder='留空使用自动生成的回调地址'
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+          />
+          <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+            如需自定义回调地址，请确保配置正确
+          </p>
+        </div>
+      </div>
+
+      {/* 用户注册配置 */}
+      <div className='space-y-4'>
+        <h4 className='text-md font-medium text-gray-900 dark:text-gray-100'>
+          用户注册配置
+        </h4>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            最低信任等级
+          </label>
+          <select
+            value={oauthSettings.minTrustLevel}
+            onChange={(e) =>
+              setOauthSettings((prev) => ({
+                ...prev,
+                minTrustLevel: parseInt(e.target.value),
+              }))
+            }
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+          >
+            <option value={0}>0 级 - 新用户</option>
+            <option value={1}>1 级 - 基础用户</option>
+            <option value={2}>2 级 - 会员</option>
+            <option value={3}>3 级 - 常规用户</option>
+            <option value={4}>4 级 - 领导者</option>
+          </select>
+          <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+            只有达到此等级的 LinuxDo 用户才能登录
+          </p>
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            默认用户角色
+          </label>
+          <select
+            value={oauthSettings.defaultRole}
+            onChange={(e) =>
+              setOauthSettings((prev) => ({
+                ...prev,
+                defaultRole: e.target.value as 'user' | 'admin',
+              }))
+            }
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+          >
+            <option value='user'>普通用户</option>
+            <option value='admin'>管理员</option>
+          </select>
+          <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+            自动注册的用户将获得此角色
+          </p>
+        </div>
+      </div>
+
+      {/* 配置说明 */}
+      <div className='bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg'>
+        <h5 className='text-sm font-medium text-blue-800 dark:text-blue-200 mb-2'>
+          配置说明
+        </h5>
+        <ul className='text-xs text-blue-700 dark:text-blue-300 space-y-1'>
+          <li>• 需要在 LinuxDo 管理后台创建 OAuth 应用获取凭证</li>
+          <li>• 启用自动注册后，符合信任等级的新用户将自动创建账号</li>
+          <li>• 禁用自动注册时，只有已存在的用户可以登录</li>
+          <li>• 回调地址格式: https://yourdomain.com/api/oauth/callback</li>
+        </ul>
+      </div>
+
+      {/* 通用弹窗组件 */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={hideAlert}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        timer={alertModal.timer}
+        showConfirm={alertModal.showConfirm}
+      />
+    </div>
+  );
+};
+
 // 直播源配置组件
 const LiveSourceConfig = ({
   config,
@@ -5753,6 +6040,7 @@ function AdminPageClient() {
     categoryConfig: false,
     configFile: false,
     dataMigration: false,
+    oauthConfig: false,
   });
 
   // 获取管理员配置
@@ -5909,6 +6197,26 @@ function AdminPageClient() {
           >
             <SiteConfigComponent config={config} refreshConfig={fetchConfig} />
           </CollapsibleTab>
+
+          {/* OAuth 配置标签 - 仅非 localStorage 模式下显示 */}
+          {storageType !== 'localstorage' && (
+            <CollapsibleTab
+              title='LinuxDo OAuth 配置'
+              icon={
+                <KeyRound
+                  size={20}
+                  className='text-gray-600 dark:text-gray-400'
+                />
+              }
+              isExpanded={expandedTabs.oauthConfig}
+              onToggle={() => toggleTab('oauthConfig')}
+            >
+              <OAuthConfigComponent
+                config={config}
+                refreshConfig={fetchConfig}
+              />
+            </CollapsibleTab>
+          )}
 
           <div className='space-y-4'>
             {/* 用户配置标签 */}

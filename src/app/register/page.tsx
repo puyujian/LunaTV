@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
-import { useSite } from '@/components/SiteProvider';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { RegisterResponse } from '@/lib/admin.types';
+
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { useSite } from '@/components/SiteProvider';
 
 function RegisterPageClient() {
   const router = useRouter();

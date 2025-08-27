@@ -2379,7 +2379,7 @@ const RegistrationConfig = ({ config: _config, role: _role, refreshConfig }: Reg
         </div>
       )}
 
-      {alertModal.isVisible && (
+      {alertModal.isOpen && (
         <AlertModal
           onClose={hideAlert}
           message={alertModal.message}

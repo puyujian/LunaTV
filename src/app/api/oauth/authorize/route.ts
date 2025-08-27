@@ -86,6 +86,11 @@ function getRedirectUri(req: NextRequest, configRedirectUri?: string): string {
 
   // 自动构建回调地址
   const url = new URL(req.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
+
+  // 优先使用请求头中的 Host，避免开发环境中的 0.0.0.0 问题
+  const host = req.headers.get('host') || url.host;
+  const protocol = req.headers.get('x-forwarded-proto') || url.protocol;
+
+  const baseUrl = `${protocol}//${host}`;
   return `${baseUrl}/api/oauth/callback`;
 }

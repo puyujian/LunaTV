@@ -327,7 +327,12 @@ function generateRandomPassword(): string {
  */
 function getRedirectUri(req: NextRequest): string {
   const url = new URL(req.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
+
+  // 优先使用请求头中的 Host，避免开发环境中的 0.0.0.0 问题
+  const host = req.headers.get('host') || url.host;
+  const protocol = req.headers.get('x-forwarded-proto') || url.protocol;
+
+  const baseUrl = `${protocol}//${host}`;
   return `${baseUrl}/api/oauth/callback`;
 }
 
@@ -336,7 +341,12 @@ function getRedirectUri(req: NextRequest): string {
  */
 function redirectToLogin(error: string, req: NextRequest): NextResponse {
   const url = new URL(req.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
+
+  // 优先使用请求头中的 Host，避免开发环境中的 0.0.0.0 问题
+  const host = req.headers.get('host') || url.host;
+  const protocol = req.headers.get('x-forwarded-proto') || url.protocol;
+
+  const baseUrl = `${protocol}//${host}`;
   const loginUrl = new URL('/login', baseUrl);
   loginUrl.searchParams.set('oauth_error', error);
   return NextResponse.redirect(loginUrl.toString());

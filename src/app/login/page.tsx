@@ -153,9 +153,26 @@ function LoginPageClient() {
             <p className='text-sm text-red-600 dark:text-red-400'>{error}</p>
           )}
 
+          {/* 登录按钮 */}
+          <button
+            type='submit'
+            disabled={!password || loading || (shouldAskUsername && !username)}
+            className='inline-flex w-full justify-center rounded-lg bg-green-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-green-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {loading ? '登录中...' : '登录'}
+          </button>
+
           {/* LinuxDo OAuth 登录按钮 */}
           {oauthEnabled && (
             <>
+              <div className='flex items-center'>
+                <div className='flex-1 border-t border-gray-300 dark:border-gray-600'></div>
+                <div className='px-3 text-sm text-gray-500 dark:text-gray-400'>
+                  或者
+                </div>
+                <div className='flex-1 border-t border-gray-300 dark:border-gray-600'></div>
+              </div>
+
               <button
                 type='button'
                 onClick={handleOAuthLogin}
@@ -177,25 +194,8 @@ function LoginPageClient() {
                 </svg>
                 使用 LinuxDo 登录
               </button>
-
-              <div className='flex items-center'>
-                <div className='flex-1 border-t border-gray-300 dark:border-gray-600'></div>
-                <div className='px-3 text-sm text-gray-500 dark:text-gray-400'>
-                  或者
-                </div>
-                <div className='flex-1 border-t border-gray-300 dark:border-gray-600'></div>
-              </div>
             </>
           )}
-
-          {/* 登录按钮 */}
-          <button
-            type='submit'
-            disabled={!password || loading || (shouldAskUsername && !username)}
-            className='inline-flex w-full justify-center rounded-lg bg-green-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-green-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
-          >
-            {loading ? '登录中...' : '登录'}
-          </button>
 
           {/* 注册链接 */}
           {registrationEnabled && storageType !== 'localstorage' && (

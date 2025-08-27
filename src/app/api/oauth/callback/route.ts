@@ -436,7 +436,25 @@ function getBaseUrl(req: NextRequest): string {
 
   // 优先使用请求头中的 Host，避免开发环境中的 0.0.0.0 问题
   const host = req.headers.get('host') || url.host;
-  const protocol = req.headers.get('x-forwarded-proto') || url.protocol;
+
+  // 智能协议判断：生产环境优先使用 HTTPS
+  let protocol = req.headers.get('x-forwarded-proto');
+
+  if (!protocol) {
+    // 如果没有 x-forwarded-proto，根据 host 判断
+    if (
+      host &&
+      !host.includes('localhost') &&
+      !host.includes('127.0.0.1') &&
+      !host.includes('0.0.0.0')
+    ) {
+      protocol = 'https:';
+    } else {
+      protocol = url.protocol;
+    }
+  } else if (!protocol.endsWith(':')) {
+    protocol = protocol + ':';
+  }
 
   return `${protocol}//${host}`;
 }

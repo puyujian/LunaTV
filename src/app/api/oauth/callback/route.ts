@@ -84,7 +84,8 @@ export async function GET(req: NextRequest) {
 
     // 5. 生成认证 Cookie 并登录
     const authCookie = await generateAuthCookie(username, 'user');
-    const response = NextResponse.redirect(new URL('/', req.url));
+    const baseUrl = getBaseUrl(req);
+    const response = NextResponse.redirect(new URL('/', baseUrl));
 
     // 设置认证 Cookie
     const expires = new Date();
@@ -323,16 +324,23 @@ function generateRandomPassword(): string {
 }
 
 /**
- * 获取回调地址
+ * 获取基础 URL，优先使用请求头中的 Host
  */
-function getRedirectUri(req: NextRequest): string {
+function getBaseUrl(req: NextRequest): string {
   const url = new URL(req.url);
 
   // 优先使用请求头中的 Host，避免开发环境中的 0.0.0.0 问题
   const host = req.headers.get('host') || url.host;
   const protocol = req.headers.get('x-forwarded-proto') || url.protocol;
 
-  const baseUrl = `${protocol}//${host}`;
+  return `${protocol}//${host}`;
+}
+
+/**
+ * 获取回调地址
+ */
+function getRedirectUri(req: NextRequest): string {
+  const baseUrl = getBaseUrl(req);
   return `${baseUrl}/api/oauth/callback`;
 }
 
@@ -340,13 +348,7 @@ function getRedirectUri(req: NextRequest): string {
  * 重定向到登录页面并显示错误信息
  */
 function redirectToLogin(error: string, req: NextRequest): NextResponse {
-  const url = new URL(req.url);
-
-  // 优先使用请求头中的 Host，避免开发环境中的 0.0.0.0 问题
-  const host = req.headers.get('host') || url.host;
-  const protocol = req.headers.get('x-forwarded-proto') || url.protocol;
-
-  const baseUrl = `${protocol}//${host}`;
+  const baseUrl = getBaseUrl(req);
   const loginUrl = new URL('/login', baseUrl);
   loginUrl.searchParams.set('oauth_error', error);
   return NextResponse.redirect(loginUrl.toString());

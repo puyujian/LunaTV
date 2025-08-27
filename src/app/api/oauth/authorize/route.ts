@@ -77,6 +77,19 @@ function generateRandomState(): string {
 }
 
 /**
+ * 获取基础 URL，优先使用请求头中的 Host
+ */
+function getBaseUrl(req: NextRequest): string {
+  const url = new URL(req.url);
+
+  // 优先使用请求头中的 Host，避免开发环境中的 0.0.0.0 问题
+  const host = req.headers.get('host') || url.host;
+  const protocol = req.headers.get('x-forwarded-proto') || url.protocol;
+
+  return `${protocol}//${host}`;
+}
+
+/**
  * 获取回调地址
  */
 function getRedirectUri(req: NextRequest, configRedirectUri?: string): string {
@@ -85,12 +98,6 @@ function getRedirectUri(req: NextRequest, configRedirectUri?: string): string {
   }
 
   // 自动构建回调地址
-  const url = new URL(req.url);
-
-  // 优先使用请求头中的 Host，避免开发环境中的 0.0.0.0 问题
-  const host = req.headers.get('host') || url.host;
-  const protocol = req.headers.get('x-forwarded-proto') || url.protocol;
-
-  const baseUrl = `${protocol}//${host}`;
+  const baseUrl = getBaseUrl(req);
   return `${baseUrl}/api/oauth/callback`;
 }

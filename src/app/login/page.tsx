@@ -18,24 +18,26 @@ function LoginPageClient() {
   const [shouldAskUsername, setShouldAskUsername] = useState(false);
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [storageType, setStorageType] = useState<string>('localstorage');
 
   const { siteName } = useSite();
 
   // 在客户端挂载后设置配置
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storageType = (window as any).RUNTIME_CONFIG?.STORAGE_TYPE;
-      setShouldAskUsername(storageType && storageType !== 'localstorage');
-    }
-
     // 获取服务器配置
     fetch('/api/server-config')
       .then((res) => res.json())
       .then((data) => {
         setRegistrationEnabled(data.EnableRegistration || false);
+        setStorageType(data.StorageType || 'localstorage');
+        setShouldAskUsername(
+          data.StorageType && data.StorageType !== 'localstorage'
+        );
       })
       .catch(() => {
         setRegistrationEnabled(false);
+        setStorageType('localstorage');
+        setShouldAskUsername(false);
       });
 
     // 检查 URL 参数中的成功消息
@@ -140,7 +142,7 @@ function LoginPageClient() {
           </button>
 
           {/* 注册链接 */}
-          {registrationEnabled && shouldAskUsername && (
+          {registrationEnabled && storageType !== 'localstorage' && (
             <div className='text-center text-sm text-gray-600 dark:text-gray-400'>
               还没有账号？{' '}
               <button

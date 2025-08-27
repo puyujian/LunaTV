@@ -34,6 +34,7 @@ import {
   FolderOpen,
   Settings,
   Tv,
+  UserCheck,
   Users,
   Video,
 } from 'lucide-react';
@@ -41,7 +42,7 @@ import { GripVertical } from 'lucide-react';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { AdminConfig, AdminConfigResult } from '@/lib/admin.types';
+import { AdminConfig, AdminConfigResult, PendingUser, RegistrationStats } from '@/lib/admin.types';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 
 import DataMigration from '@/components/DataMigration';
@@ -2018,6 +2019,377 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
     </div>
   );
 }
+
+// 注册管理组件
+interface RegistrationConfigProps {
+  config: AdminConfig | null;
+  role: 'owner' | 'admin' | null;
+  refreshConfig: () => Promise<void>;
+}
+
+const RegistrationConfig = ({ config, role, refreshConfig }: RegistrationConfigProps) => {
+  const { alertModal, showAlert, hideAlert } = useAlertModal();
+  const { isLoading, withLoading } = useLoadingState();
+  const [registrationData, setRegistrationData] = useState<{
+    settings: any;
+    pendingUsers: PendingUser[];
+    stats: RegistrationStats;
+  } | null>(null);
+  const [selectedPendingUsers, setSelectedPendingUsers] = useState<string[]>([]);
+
+  // 获取注册数据
+  const fetchRegistrationData = async () => {
+    try {
+      const response = await fetch('/api/admin/registration');
+      if (!response.ok) {
+        throw new Error('Failed to fetch registration data');
+      }
+      const data = await response.json();
+      setRegistrationData(data);
+    } catch (error) {
+      console.error('获取注册数据失败:', error);
+      showAlert('获取注册数据失败');
+    }
+  };
+
+  useEffect(() => {
+    fetchRegistrationData();
+  }, []);
+
+  // 更新注册设置
+  const handleUpdateSettings = async (newSettings: any) => {
+    await withLoading('updateRegistrationSettings', async () => {
+      try {
+        const response = await fetch('/api/admin/registration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'updateSettings',
+            settings: newSettings
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update settings');
+        }
+
+        showAlert('注册设置已更新', 2000);
+        await Promise.all([refreshConfig(), fetchRegistrationData()]);
+      } catch (error) {
+        console.error('更新注册设置失败:', error);
+        showAlert('更新注册设置失败');
+      }
+    });
+  };
+
+  // 批准用户
+  const handleApproveUser = async (username: string) => {
+    await withLoading(`approve_${username}`, async () => {
+      try {
+        const response = await fetch('/api/admin/registration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'approve',
+            username
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to approve user');
+        }
+
+        showAlert(`用户 ${username} 审核通过`, 2000);
+        await Promise.all([refreshConfig(), fetchRegistrationData()]);
+      } catch (error) {
+        console.error('批准用户失败:', error);
+        showAlert(`批准用户 ${username} 失败`);
+      }
+    });
+  };
+
+  // 拒绝用户
+  const handleRejectUser = async (username: string) => {
+    await withLoading(`reject_${username}`, async () => {
+      try {
+        const response = await fetch('/api/admin/registration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'reject',
+            username
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to reject user');
+        }
+
+        showAlert(`用户 ${username} 申请已拒绝`, 2000);
+        await fetchRegistrationData();
+      } catch (error) {
+        console.error('拒绝用户失败:', error);
+        showAlert(`拒绝用户 ${username} 失败`);
+      }
+    });
+  };
+
+  // 批量操作
+  const handleBatchOperation = async (action: 'approve' | 'reject') => {
+    if (selectedPendingUsers.length === 0) {
+      showAlert('请选择要操作的用户');
+      return;
+    }
+
+    await withLoading(`batch_${action}`, async () => {
+      try {
+        const response = await fetch('/api/admin/registration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: `batch${action.charAt(0).toUpperCase() + action.slice(1)}`,
+            usernames: selectedPendingUsers
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to ${action} users`);
+        }
+
+        const result = await response.json();
+        showAlert(result.message, 3000);
+        setSelectedPendingUsers([]);
+        await Promise.all([refreshConfig(), fetchRegistrationData()]);
+      } catch (error) {
+        console.error(`批量${action === 'approve' ? '批准' : '拒绝'}用户失败:`, error);
+        showAlert(`批量操作失败`);
+      }
+    });
+  };
+
+  if (!registrationData) {
+    return <div className='p-4 text-center text-gray-500'>加载中...</div>;
+  }
+
+  const { settings, pendingUsers, stats } = registrationData;
+
+  return (
+    <div className='space-y-6'>
+      {/* 注册统计 */}
+      <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+        <div className='bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg'>
+          <div className='text-2xl font-bold text-blue-600 dark:text-blue-400'>
+            {stats.totalUsers}
+          </div>
+          <div className='text-sm text-blue-600 dark:text-blue-400'>
+            总用户数
+            {stats.maxUsers && ` / ${stats.maxUsers}`}
+          </div>
+        </div>
+        <div className='bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg'>
+          <div className='text-2xl font-bold text-orange-600 dark:text-orange-400'>
+            {stats.pendingUsers}
+          </div>
+          <div className='text-sm text-orange-600 dark:text-orange-400'>
+            待审核用户
+          </div>
+        </div>
+        <div className='bg-green-50 dark:bg-green-900/20 p-4 rounded-lg'>
+          <div className='text-2xl font-bold text-green-600 dark:text-green-400'>
+            {stats.todayRegistrations}
+          </div>
+          <div className='text-sm text-green-600 dark:text-green-400'>
+            今日注册
+          </div>
+        </div>
+        <div className={`p-4 rounded-lg ${settings.enableRegistration ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+          <div className={`text-2xl font-bold ${settings.enableRegistration ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+            {settings.enableRegistration ? '开启' : '关闭'}
+          </div>
+          <div className={`text-sm ${settings.enableRegistration ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+            注册状态
+          </div>
+        </div>
+      </div>
+
+      {/* 注册设置 */}
+      <div className='bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm'>
+        <h3 className='text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100'>
+          注册设置
+        </h3>
+        <div className='space-y-4'>
+          <div className='flex items-center space-x-4'>
+            <label className='flex items-center'>
+              <input
+                type='checkbox'
+                checked={settings.enableRegistration}
+                onChange={(e) => handleUpdateSettings({
+                  ...settings,
+                  enableRegistration: e.target.checked
+                })}
+                className='mr-2'
+              />
+              启用新用户注册
+            </label>
+          </div>
+          
+          {settings.enableRegistration && (
+            <>
+              <div className='flex items-center space-x-4'>
+                <label className='flex items-center'>
+                  <input
+                    type='checkbox'
+                    checked={settings.registrationApproval}
+                    onChange={(e) => handleUpdateSettings({
+                      ...settings,
+                      registrationApproval: e.target.checked
+                    })}
+                    className='mr-2'
+                  />
+                  需要管理员审核
+                </label>
+              </div>
+              
+              <div className='flex items-center space-x-4'>
+                <label className='flex items-center space-x-2'>
+                  <span>最大用户数限制:</span>
+                  <input
+                    type='number'
+                    value={settings.maxUsers || ''}
+                    onChange={(e) => handleUpdateSettings({
+                      ...settings,
+                      maxUsers: e.target.value ? parseInt(e.target.value) : undefined
+                    })}
+                    placeholder='无限制'
+                    className='px-3 py-1 border rounded-md dark:bg-gray-700 dark:border-gray-600 w-24'
+                    min='1'
+                  />
+                </label>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 待审核用户列表 */}
+      {settings.enableRegistration && settings.registrationApproval && pendingUsers.length > 0 && (
+        <div className='bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm'>
+          <div className='flex items-center justify-between mb-4'>
+            <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+              待审核用户 ({pendingUsers.length})
+            </h3>
+            {selectedPendingUsers.length > 0 && (
+              <div className='space-x-2'>
+                <button
+                  onClick={() => handleBatchOperation('approve')}
+                  disabled={isLoading('batch_approve')}
+                  className={buttonStyles.roundedSuccess}
+                >
+                  批量批准 ({selectedPendingUsers.length})
+                </button>
+                <button
+                  onClick={() => handleBatchOperation('reject')}
+                  disabled={isLoading('batch_reject')}
+                  className={buttonStyles.roundedDanger}
+                >
+                  批量拒绝 ({selectedPendingUsers.length})
+                </button>
+              </div>
+            )}
+          </div>
+          
+          <div className='overflow-x-auto'>
+            <table className='min-w-full divide-y divide-gray-200 dark:divide-gray-700'>
+              <thead className='bg-gray-50 dark:bg-gray-700'>
+                <tr>
+                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider'>
+                    <input
+                      type='checkbox'
+                      checked={selectedPendingUsers.length === pendingUsers.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedPendingUsers(pendingUsers.map(u => u.username));
+                        } else {
+                          setSelectedPendingUsers([]);
+                        }
+                      }}
+                    />
+                  </th>
+                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider'>
+                    用户名
+                  </th>
+                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider'>
+                    注册时间
+                  </th>
+                  <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider'>
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody className='bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700'>
+                {pendingUsers.map((user) => (
+                  <tr key={user.username}>
+                    <td className='px-6 py-4 whitespace-nowrap'>
+                      <input
+                        type='checkbox'
+                        checked={selectedPendingUsers.includes(user.username)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedPendingUsers([...selectedPendingUsers, user.username]);
+                          } else {
+                            setSelectedPendingUsers(selectedPendingUsers.filter(u => u !== user.username));
+                          }
+                        }}
+                      />
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100'>
+                      {user.username}
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400'>
+                      {new Date(user.registeredAt).toLocaleString()}
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
+                      <button
+                        onClick={() => handleApproveUser(user.username)}
+                        disabled={isLoading(`approve_${user.username}`)}
+                        className={buttonStyles.roundedSuccess}
+                      >
+                        批准
+                      </button>
+                      <button
+                        onClick={() => handleRejectUser(user.username)}
+                        disabled={isLoading(`reject_${user.username}`)}
+                        className={buttonStyles.roundedDanger}
+                      >
+                        拒绝
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 提示信息 */}
+      {settings.enableRegistration && pendingUsers.length === 0 && settings.registrationApproval && (
+        <div className='bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-center text-blue-600 dark:text-blue-400'>
+          暂无待审核的用户注册申请
+        </div>
+      )}
+
+      {alertModal.isVisible && (
+        <AlertModal
+          onClose={hideAlert}
+          message={alertModal.message}
+          timer={alertModal.timer}
+          showConfirm={alertModal.showConfirm}
+        />
+      )}
+    </div>
+  );
+};
 
 // 视频源配置组件
 const VideoSourceConfig = ({
@@ -4497,8 +4869,14 @@ function AdminPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<'owner' | 'admin' | null>(null);
   const [showResetConfigModal, setShowResetConfigModal] = useState(false);
+  
+  // 注册管理相关状态
+  const [registrationData, setRegistrationData] = useState<any>(null);
+  const [selectedPendingUsers, setSelectedPendingUsers] = useState<string[]>([]);
+  const [storageType, setStorageType] = useState<string>('localstorage');
   const [expandedTabs, setExpandedTabs] = useState<{ [key: string]: boolean }>({
     userConfig: false,
+    registrationConfig: false,
     videoSource: false,
     liveSource: false,
     siteConfig: false,
@@ -4539,6 +4917,16 @@ function AdminPageClient() {
   useEffect(() => {
     // 首次加载时显示骨架
     fetchConfig(true);
+    
+    // 获取存储类型
+    fetch('/api/server-config')
+      .then(res => res.json())
+      .then(data => {
+        setStorageType(data.StorageType || 'localstorage');
+      })
+      .catch(() => {
+        setStorageType('localstorage');
+      });
   }, [fetchConfig]);
 
   // 切换标签展开状态
@@ -4665,6 +5053,24 @@ function AdminPageClient() {
                 refreshConfig={fetchConfig}
               />
             </CollapsibleTab>
+
+            {/* 注册管理标签 - 仅在非 localStorage 模式下显示 */}
+            {storageType !== 'localstorage' && (
+              <CollapsibleTab
+                title='注册管理'
+                icon={
+                  <UserCheck size={20} className='text-gray-600 dark:text-gray-400' />
+                }
+                isExpanded={expandedTabs.registrationConfig}
+                onToggle={() => toggleTab('registrationConfig')}
+              >
+                <RegistrationConfig
+                  config={config}
+                  role={role}
+                  refreshConfig={fetchConfig}
+                />
+              </CollapsibleTab>
+            )}
 
             {/* 视频源配置标签 */}
             <CollapsibleTab

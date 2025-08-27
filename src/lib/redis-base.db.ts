@@ -2,7 +2,7 @@
 
 import { createClient, RedisClientType } from 'redis';
 
-import { AdminConfig } from './admin.types';
+import { AdminConfig, PendingUser, RegistrationStats } from './admin.types';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 
 // 搜索历史最大条数
@@ -462,5 +462,116 @@ export abstract class BaseRedisStorage implements IStorage {
       console.error('清空数据失败:', error);
       throw new Error('清空数据失败');
     }
+  }
+
+  // ---------- 注册相关方法 ----------
+  private pendingUserKey(username: string) {
+    return `pending:user:${username}`;
+  }
+
+  private registrationStatsKey() {
+    return 'registration:stats';
+  }
+
+  async createPendingUser(username: string, hashedPassword: string): Promise<void> {
+    const pendingUser: PendingUser = {
+      username,
+      registeredAt: Date.now(),
+      hashedPassword
+    };
+    
+    await this.withRetry(() =>
+      this.client.set(this.pendingUserKey(username), JSON.stringify(pendingUser))
+    );
+
+    // 更新今日注册统计
+    const today = new Date().toISOString().split('T')[0];
+    const todayKey = `registration:today:${today}`;
+    await this.withRetry(() => this.client.incr(todayKey));
+    await this.withRetry(() => this.client.expire(todayKey, 24 * 60 * 60)); // 24小时过期
+  }
+
+  async getPendingUsers(): Promise<PendingUser[]> {
+    const pattern = 'pending:user:*';
+    const keys: string[] = await this.withRetry(() => this.client.keys(pattern));
+    if (keys.length === 0) return [];
+
+    const values = await this.withRetry(() => this.client.mGet(keys));
+    const pendingUsers: PendingUser[] = [];
+    
+    values.forEach((raw) => {
+      if (raw) {
+        try {
+          pendingUsers.push(JSON.parse(raw) as PendingUser);
+        } catch (error) {
+          console.error('解析待审核用户数据失败:', error);
+        }
+      }
+    });
+
+    return pendingUsers.sort((a, b) => a.registeredAt - b.registeredAt);
+  }
+
+  async approvePendingUser(username: string): Promise<void> {
+    // 获取待审核用户信息
+    const pendingData = await this.withRetry(() =>
+      this.client.get(this.pendingUserKey(username))
+    );
+    
+    if (!pendingData) {
+      throw new Error('待审核用户不存在');
+    }
+
+    const pendingUser: PendingUser = JSON.parse(pendingData);
+    
+    // 创建正式用户账号（使用加密密码）
+    await this.withRetry(() =>
+      this.client.set(this.userPwdKey(username), pendingUser.hashedPassword)
+    );
+
+    // 删除待审核记录
+    await this.withRetry(() => this.client.del(this.pendingUserKey(username)));
+
+    console.log(`用户 ${username} 注册审核通过`);
+  }
+
+  async rejectPendingUser(username: string): Promise<void> {
+    const exists = await this.withRetry(() =>
+      this.client.exists(this.pendingUserKey(username))
+    );
+    
+    if (exists === 0) {
+      throw new Error('待审核用户不存在');
+    }
+
+    await this.withRetry(() => this.client.del(this.pendingUserKey(username)));
+    console.log(`用户 ${username} 注册申请已拒绝`);
+  }
+
+  async getRegistrationStats(): Promise<RegistrationStats> {
+    // 获取总用户数
+    const allUsers = await this.getAllUsers();
+    const totalUsers = allUsers.length;
+
+    // 获取待审核用户数
+    const pendingUsers = await this.getPendingUsers();
+    const pendingCount = pendingUsers.length;
+
+    // 获取今日注册数
+    const today = new Date().toISOString().split('T')[0];
+    const todayKey = `registration:today:${today}`;
+    const todayCount = await this.withRetry(() => this.client.get(todayKey));
+    const todayRegistrations = todayCount ? parseInt(todayCount) : 0;
+
+    // 从配置中获取最大用户数限制
+    const adminConfig = await this.getAdminConfig();
+    const maxUsers = adminConfig?.SiteConfig?.MaxUsers;
+
+    return {
+      totalUsers,
+      maxUsers,
+      pendingUsers: pendingCount,
+      todayRegistrations
+    };
   }
 }

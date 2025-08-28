@@ -2530,6 +2530,11 @@ const RegistrationConfig = ({
     []
   );
 
+  // 自动刷新相关状态
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(30000); // 30秒
+  const [lastDataHash, setLastDataHash] = useState<string>('');
+
   // 获取注册数据
   const fetchRegistrationData = async () => {
     try {
@@ -2538,6 +2543,36 @@ const RegistrationConfig = ({
         throw new Error('Failed to fetch registration data');
       }
       const data = await response.json();
+
+      // 计算数据哈希用于检测变化
+      const dataHash = JSON.stringify({
+        pendingCount: data.pendingUsers.length,
+        pendingUsers: data.pendingUsers.map((u: any) => u.username).sort(),
+      });
+
+      // 如果数据有变化，显示通知
+      if (
+        lastDataHash &&
+        lastDataHash !== dataHash &&
+        data.pendingUsers.length > 0
+      ) {
+        const prevData = registrationData;
+        if (
+          prevData &&
+          data.pendingUsers.length > prevData.pendingUsers.length
+        ) {
+          const newUsersCount =
+            data.pendingUsers.length - prevData.pendingUsers.length;
+          showAlert({
+            type: 'success',
+            title: '新用户注册',
+            message: `有 ${newUsersCount} 个新用户等待审核`,
+            timer: 3000,
+          });
+        }
+      }
+
+      setLastDataHash(dataHash);
       setRegistrationData(data);
     } catch (error) {
       console.error('获取注册数据失败:', error);
@@ -2548,6 +2583,17 @@ const RegistrationConfig = ({
   useEffect(() => {
     fetchRegistrationData();
   }, []);
+
+  // 自动刷新轮询
+  useEffect(() => {
+    if (!autoRefresh || refreshInterval <= 0) return;
+
+    const interval = setInterval(() => {
+      fetchRegistrationData();
+    }, refreshInterval);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, refreshInterval, lastDataHash]);
 
   // 更新注册设置
   const handleUpdateSettings = async (newSettings: any) => {
@@ -2824,6 +2870,58 @@ const RegistrationConfig = ({
                   />
                 </label>
               </div>
+
+              {/* 自动刷新设置 */}
+              {settings.registrationApproval && (
+                <>
+                  <div className='border-t border-gray-200 dark:border-gray-700 pt-4 mt-4'>
+                    <h4 className='text-md font-medium text-gray-900 dark:text-gray-100 mb-3'>
+                      自动刷新设置
+                    </h4>
+                    <div className='space-y-3'>
+                      <div className='flex items-center space-x-4'>
+                        <label className='flex items-center'>
+                          <input
+                            type='checkbox'
+                            checked={autoRefresh}
+                            onChange={(e) => setAutoRefresh(e.target.checked)}
+                            className='mr-2'
+                          />
+                          启用自动刷新
+                        </label>
+                      </div>
+
+                      {autoRefresh && (
+                        <div className='flex items-center space-x-4'>
+                          <label className='flex items-center space-x-2'>
+                            <span>刷新间隔:</span>
+                            <select
+                              value={refreshInterval}
+                              onChange={(e) =>
+                                setRefreshInterval(Number(e.target.value))
+                              }
+                              className='px-3 py-1 border rounded-md dark:bg-gray-700 dark:border-gray-600'
+                            >
+                              <option value={10000}>10秒</option>
+                              <option value={30000}>30秒</option>
+                              <option value={60000}>1分钟</option>
+                              <option value={300000}>5分钟</option>
+                            </select>
+                          </label>
+                        </div>
+                      )}
+
+                      <div className='text-xs text-gray-500 dark:text-gray-400'>
+                        {autoRefresh
+                          ? `自动检测新的待审核用户，每${
+                              refreshInterval / 1000
+                            }秒刷新一次`
+                          : '已关闭自动刷新，需要手动刷新页面查看新用户'}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -2835,9 +2933,19 @@ const RegistrationConfig = ({
         pendingUsers.length > 0 && (
           <div className='bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm'>
             <div className='flex items-center justify-between mb-4'>
-              <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
-                待审核用户 ({pendingUsers.length})
-              </h3>
+              <div className='flex items-center space-x-3'>
+                <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+                  待审核用户 ({pendingUsers.length})
+                </h3>
+                {autoRefresh && (
+                  <div className='flex items-center space-x-2'>
+                    <div className='w-2 h-2 bg-green-500 rounded-full animate-pulse'></div>
+                    <span className='text-xs text-gray-500 dark:text-gray-400'>
+                      自动刷新中
+                    </span>
+                  </div>
+                )}
+              </div>
               {selectedPendingUsers.length > 0 && (
                 <div className='space-x-2'>
                   <button

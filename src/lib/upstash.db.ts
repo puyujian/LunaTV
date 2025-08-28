@@ -398,9 +398,54 @@ export class UpstashRedisStorage implements IStorage {
 
     if (!result) return [];
 
-    return Object.values(result).map(
-      (userData) => JSON.parse(ensureString(userData)) as PendingUser
-    );
+    const pendingUsers: PendingUser[] = [];
+    const usernames = Object.keys(result);
+
+    for (const username of usernames) {
+      const userData = result[username];
+      if (userData) {
+        try {
+          const userDataString = ensureString(userData);
+          // 检查 userData 是否为有效的 JSON 字符串
+          if (userDataString && userDataString !== '[object Object]') {
+            const parsed = JSON.parse(userDataString) as PendingUser;
+            // 验证解析后的数据结构是否完整
+            if (
+              parsed &&
+              parsed.username &&
+              typeof parsed.registeredAt === 'number'
+            ) {
+              pendingUsers.push(parsed);
+            } else {
+              console.warn('待审核用户数据结构不完整:', parsed);
+              // 清理损坏的数据
+              this.client
+                .hdel(this.pendingUsersKey(), username)
+                .catch((err) => console.error('清理损坏数据失败:', err));
+            }
+          } else {
+            console.warn('待审核用户数据格式无效:', userData);
+            // 清理无效数据
+            this.client
+              .hdel(this.pendingUsersKey(), username)
+              .catch((err) => console.error('清理无效数据失败:', err));
+          }
+        } catch (error) {
+          console.error(
+            '解析待审核用户数据失败:',
+            error,
+            'raw data:',
+            userData
+          );
+          // 清理解析失败的损坏数据
+          this.client
+            .hdel(this.pendingUsersKey(), username)
+            .catch((err) => console.error('清理解析失败的数据失败:', err));
+        }
+      }
+    }
+
+    return pendingUsers;
   }
 
   async approvePendingUser(username: string): Promise<void> {

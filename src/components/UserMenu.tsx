@@ -510,13 +510,16 @@ export const UserMenu: React.FC = () => {
               </span>
             </div>
             <div className='flex items-center justify-between'>
-              <div className='font-semibold text-gray-900 dark:text-gray-100 text-sm truncate'>
+              <div className='font-semibold text-gray-900 dark:text-gray-100 text-sm break-words min-w-0 flex-1'>
                 {authInfo?.username || 'default'}
               </div>
-              <div className='text-[10px] text-gray-400 dark:text-gray-500'>
-                数据存储：
-                {storageType === 'localstorage' ? '本地' : storageType}
-              </div>
+              {/* 只对管理员和站长显示存储信息 */}
+              {(authInfo?.role === 'owner' || authInfo?.role === 'admin') && (
+                <div className='text-[10px] text-gray-400 dark:text-gray-500 ml-2 flex-shrink-0'>
+                  数据存储：
+                  {storageType === 'localstorage' ? '本地' : storageType}
+                </div>
+              )}
             </div>
           </div>
         </div>

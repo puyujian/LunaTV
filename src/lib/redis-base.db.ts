@@ -531,12 +531,48 @@ export abstract class BaseRedisStorage implements IStorage {
     const values = await this.withRetry(() => this.client.mGet(keys));
     const pendingUsers: PendingUser[] = [];
 
-    values.forEach((raw) => {
+    values.forEach((raw, index) => {
       if (raw) {
         try {
-          pendingUsers.push(JSON.parse(raw) as PendingUser);
+          // 检查 raw 是否为有效的 JSON 字符串
+          if (typeof raw === 'string' && raw !== '[object Object]') {
+            const parsed = JSON.parse(raw) as PendingUser;
+            // 验证解析后的数据结构是否完整
+            if (
+              parsed &&
+              parsed.username &&
+              typeof parsed.registeredAt === 'number'
+            ) {
+              pendingUsers.push(parsed);
+            } else {
+              console.warn('待审核用户数据结构不完整:', parsed);
+              // 可选：清理损坏的数据
+              const keyToClean = keys[index];
+              if (keyToClean) {
+                this.withRetry(() => this.client.del(keyToClean)).catch((err) =>
+                  console.error('清理损坏数据失败:', err)
+                );
+              }
+            }
+          } else {
+            console.warn('待审核用户数据格式无效:', raw);
+            // 清理无效数据
+            const keyToClean = keys[index];
+            if (keyToClean) {
+              this.withRetry(() => this.client.del(keyToClean)).catch((err) =>
+                console.error('清理无效数据失败:', err)
+              );
+            }
+          }
         } catch (error) {
-          console.error('解析待审核用户数据失败:', error);
+          console.error('解析待审核用户数据失败:', error, 'raw data:', raw);
+          // 清理解析失败的损坏数据
+          const keyToClean = keys[index];
+          if (keyToClean) {
+            this.withRetry(() => this.client.del(keyToClean)).catch((err) =>
+              console.error('清理解析失败的数据失败:', err)
+            );
+          }
         }
       }
     });

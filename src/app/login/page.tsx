@@ -148,7 +148,93 @@ function LoginPageClient() {
           )}
 
           {error && (
-            <p className='text-sm text-red-600 dark:text-red-400'>{error}</p>
+            <div
+              className={`p-4 rounded-lg border-l-4 ${
+                error.includes('审核中')
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-400 text-amber-800 dark:text-amber-200'
+                  : error.includes('被拒绝')
+                  ? 'bg-red-50 dark:bg-red-900/20 border-red-400 text-red-800 dark:text-red-200'
+                  : error.includes('被封禁')
+                  ? 'bg-gray-50 dark:bg-gray-900/20 border-gray-400 text-gray-800 dark:text-gray-200'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-400 text-red-800 dark:text-red-200'
+              }`}
+            >
+              <div className='flex items-center'>
+                <div className='flex-shrink-0'>
+                  {error.includes('审核中') ? (
+                    <svg
+                      className='w-5 h-5 text-amber-400'
+                      fill='currentColor'
+                      viewBox='0 0 20 20'
+                    >
+                      <path
+                        fillRule='evenodd'
+                        d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+                        clipRule='evenodd'
+                      />
+                    </svg>
+                  ) : error.includes('被拒绝') ? (
+                    <svg
+                      className='w-5 h-5 text-red-400'
+                      fill='currentColor'
+                      viewBox='0 0 20 20'
+                    >
+                      <path
+                        fillRule='evenodd'
+                        d='M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z'
+                        clipRule='evenodd'
+                      />
+                    </svg>
+                  ) : error.includes('被封禁') ? (
+                    <svg
+                      className='w-5 h-5 text-gray-400'
+                      fill='currentColor'
+                      viewBox='0 0 20 20'
+                    >
+                      <path
+                        fillRule='evenodd'
+                        d='M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z'
+                        clipRule='evenodd'
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className='w-5 h-5 text-red-400'
+                      fill='currentColor'
+                      viewBox='0 0 20 20'
+                    >
+                      <path
+                        fillRule='evenodd'
+                        d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z'
+                        clipRule='evenodd'
+                      />
+                    </svg>
+                  )}
+                </div>
+                <div className='ml-3 flex-1'>
+                  <p className='text-sm font-medium'>
+                    {error.includes('审核中') && '账号审核中'}
+                    {error.includes('被拒绝') && '账号申请被拒绝'}
+                    {error.includes('被封禁') && '账号被封禁'}
+                    {!error.includes('审核中') &&
+                      !error.includes('被拒绝') &&
+                      !error.includes('被封禁') &&
+                      '登录失败'}
+                  </p>
+                  <p className='text-sm opacity-80 mt-1'>{error}</p>
+                  {error.includes('审核中') && (
+                    <p className='text-xs opacity-70 mt-2'>
+                      💡 您的注册申请已提交，管理员将会尽快处理
+                    </p>
+                  )}
+                  {error.includes('被拒绝') && (
+                    <p className='text-xs opacity-70 mt-2'>
+                      💡 如有疑问请联系管理员
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* 登录按钮 */}

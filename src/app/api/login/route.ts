@@ -185,9 +185,20 @@ export async function POST(req: NextRequest) {
           { status: 401 }
         );
       }
+    } else {
+      // 如果不在配置中，检查是否是待审核用户
+      const pendingUsers = await db.getPendingUsers();
+      const pendingUser = pendingUsers.find((u) => u.username === username);
+
+      if (pendingUser) {
+        return NextResponse.json(
+          { error: '账号正在审核中，请等待管理员审批' },
+          { status: 401 }
+        );
+      }
     }
 
-    // 校验用户密码（只有approved用户或不在配置中的用户才会到这里）
+    // 校验用户密码（只有approved用户或不在配置和待审核列表中的用户才会到这里）
     try {
       const pass = await db.verifyUser(username, password);
       if (!pass) {

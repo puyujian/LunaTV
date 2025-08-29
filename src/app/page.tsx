@@ -448,66 +448,145 @@ function HomeClient() {
       </div>
       {announcement && showAnnouncement && (
         <div
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm dark:bg-black/70 p-4 transition-opacity duration-300 ${
-            showAnnouncement ? '' : 'opacity-0 pointer-events-none'
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 transition-all duration-300 ${
+            showAnnouncement
+              ? 'opacity-100 scale-100'
+              : 'opacity-0 scale-95 pointer-events-none'
           }`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseAnnouncement(announcement);
+            }
+          }}
           onTouchStart={(e) => {
-            // 如果点击的是背景区域，阻止触摸事件冒泡，防止背景滚动
             if (e.target === e.currentTarget) {
               e.preventDefault();
             }
           }}
           onTouchMove={(e) => {
-            // 如果触摸的是背景区域，阻止触摸移动，防止背景滚动
             if (e.target === e.currentTarget) {
               e.preventDefault();
               e.stopPropagation();
-            }
-          }}
-          onTouchEnd={(e) => {
-            // 如果触摸的是背景区域，阻止触摸结束事件，防止背景滚动
-            if (e.target === e.currentTarget) {
-              e.preventDefault();
             }
           }}
           style={{
-            touchAction: 'none', // 禁用所有触摸操作
+            touchAction: 'none',
           }}
         >
           <div
-            className='w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900 transform transition-all duration-300 hover:shadow-2xl'
+            className='w-full max-w-lg mx-4 transform transition-all duration-300 ease-out'
             onTouchMove={(e) => {
-              // 允许公告内容区域正常滚动，阻止事件冒泡到外层
               e.stopPropagation();
             }}
             style={{
-              touchAction: 'auto', // 允许内容区域的正常触摸操作
+              touchAction: 'auto',
             }}
           >
-            <div className='flex justify-between items-start mb-4'>
-              <h3 className='text-2xl font-bold tracking-tight text-gray-800 dark:text-white border-b border-green-500 pb-1'>
-                提示
-              </h3>
-              <button
-                onClick={() => handleCloseAnnouncement(announcement)}
-                className='text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-white transition-colors'
-                aria-label='关闭'
-              ></button>
-            </div>
-            <div className='mb-6'>
-              <div className='relative overflow-hidden rounded-lg mb-4 bg-green-50 dark:bg-green-900/20'>
-                <div className='absolute inset-y-0 left-0 w-1.5 bg-green-500 dark:bg-green-400'></div>
-                <p className='ml-4 text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap'>
-                  {announcement}
-                </p>
+            {/* 公告卡片 */}
+            <div className='bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden'>
+              {/* 顶部装饰条 */}
+              <div className='h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500'></div>
+
+              {/* 卡片头部 */}
+              <div className='px-6 py-4 border-b border-gray-100 dark:border-gray-800'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-3'>
+                    {/* 图标 */}
+                    <div className='w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg'>
+                      <svg
+                        className='w-5 h-5 text-white'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth={2}
+                          d='M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                        />
+                      </svg>
+                    </div>
+                    {/* 标题 */}
+                    <div>
+                      <h3 className='text-xl font-bold text-gray-900 dark:text-white'>
+                        站点公告
+                      </h3>
+                      <p className='text-sm text-gray-500 dark:text-gray-400'>
+                        重要信息通知
+                      </p>
+                    </div>
+                  </div>
+                  {/* 关闭按钮 */}
+                  <button
+                    onClick={() => handleCloseAnnouncement(announcement)}
+                    className='w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition-colors group'
+                    aria-label='关闭'
+                  >
+                    <svg
+                      className='w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M6 18L18 6M6 6l12 12'
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* 公告内容 */}
+              <div className='px-6 py-6'>
+                <div className='relative'>
+                  {/* 内容区域 */}
+                  <div className='bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-700'>
+                    {/* 左侧装饰线 */}
+                    <div className='absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full'></div>
+                    {/* 公告文本 */}
+                    <div className='ml-4'>
+                      <p className='text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-[15px]'>
+                        {announcement}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 底部操作区 */}
+              <div className='px-6 py-4 bg-gray-50 dark:bg-gray-800/50'>
+                <button
+                  onClick={() => handleCloseAnnouncement(announcement)}
+                  className='w-full relative overflow-hidden group bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0'
+                >
+                  {/* 按钮背景动画 */}
+                  <div className='absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
+                  {/* 按钮文本 */}
+                  <span className='relative flex items-center justify-center gap-2'>
+                    <svg
+                      className='w-4 h-4'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M5 13l4 4L19 7'
+                      />
+                    </svg>
+                    我知道了
+                  </span>
+                  {/* 光效 */}
+                  <div className='absolute inset-0 bg-white opacity-0 group-active:opacity-20 transition-opacity duration-150'></div>
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => handleCloseAnnouncement(announcement)}
-              className='w-full rounded-lg bg-gradient-to-r from-green-600 to-green-700 px-4 py-3 text-white font-medium shadow-md hover:shadow-lg hover:from-green-700 hover:to-green-800 dark:from-green-600 dark:to-green-700 dark:hover:from-green-700 dark:hover:to-green-800 transition-all duration-300 transform hover:-translate-y-0.5'
-            >
-              我知道了
-            </button>
           </div>
         </div>
       )}

@@ -141,7 +141,23 @@ export async function GET(req: NextRequest) {
       return redirectToLogin('认证失败，请稍后重试', req);
     }
     const baseUrl = getBaseUrl(req);
-    const response = NextResponse.redirect(new URL('/', baseUrl));
+
+    // 检测请求来源，如果是移动应用则重定向到深度链接
+    const userAgent = req.headers.get('user-agent') || '';
+    const _referer = req.headers.get('referer') || '';
+    const isMobileApp =
+      userAgent.includes('OrionTV') ||
+      req.url.includes('mobile=1') ||
+      req.headers.get('x-mobile-app') === 'true';
+
+    let response;
+    if (isMobileApp) {
+      // 移动应用：重定向到深度链接
+      response = NextResponse.redirect('oriontv://oauth/callback?success=true');
+    } else {
+      // Web应用：重定向到首页
+      response = NextResponse.redirect(new URL('/', baseUrl));
+    }
 
     // 设置认证 Cookie
     const expires = new Date();
@@ -455,8 +471,23 @@ function getRedirectUri(req: NextRequest): string {
  * 重定向到登录页面并显示错误信息
  */
 function redirectToLogin(error: string, req: NextRequest): NextResponse {
-  const baseUrl = getBaseUrl(req);
-  const loginUrl = new URL('/login', baseUrl);
-  loginUrl.searchParams.set('oauth_error', error);
-  return NextResponse.redirect(loginUrl.toString());
+  // 检测请求来源
+  const userAgent = req.headers.get('user-agent') || '';
+  const isMobileApp =
+    userAgent.includes('OrionTV') ||
+    req.url.includes('mobile=1') ||
+    req.headers.get('x-mobile-app') === 'true';
+
+  if (isMobileApp) {
+    // 移动应用：重定向到深度链接并传递错误信息
+    return NextResponse.redirect(
+      `oriontv://oauth/callback?error=${encodeURIComponent(error)}`
+    );
+  } else {
+    // Web应用：重定向到登录页面
+    const baseUrl = getBaseUrl(req);
+    const loginUrl = new URL('/login', baseUrl);
+    loginUrl.searchParams.set('oauth_error', error);
+    return NextResponse.redirect(loginUrl.toString());
+  }
 }

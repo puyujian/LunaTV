@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
     // 5. 生成认证 Cookie 并登录
     let authCookie;
     try {
-      authCookie = await generateAuthCookie(username, 'user');
+      authCookie = await generateAuthCookie(username, undefined, 'user', false);
     } catch (authError) {
       console.error('生成认证 Cookie 失败:', authError);
       return redirectToLogin('认证失败，请稍后重试', req);
@@ -407,22 +407,27 @@ async function findOrCreateUser(
 }
 
 /**
- * 生成认证 Cookie
+ * 生成认证 Cookie（与login接口保持一致的格式）
  */
 async function generateAuthCookie(
-  username: string,
-  role: string
+  username?: string,
+  password?: string,
+  role?: 'owner' | 'admin' | 'user',
+  includePassword = false
 ): Promise<string> {
-  const authData: any = {
-    username,
-    role,
-    timestamp: Date.now(),
-  };
+  const authData: any = { role: role || 'user' };
 
-  // 如果有密码环境变量，生成签名
-  if (process.env.PASSWORD) {
+  // 只在需要时包含 password
+  if (includePassword && password) {
+    authData.password = password;
+  }
+
+  if (username && process.env.PASSWORD) {
+    authData.username = username;
+    // 使用密码作为密钥对用户名进行签名
     const signature = await generateSignature(username, process.env.PASSWORD);
     authData.signature = signature;
+    authData.timestamp = Date.now(); // 添加时间戳防重放攻击
   }
 
   return encodeURIComponent(JSON.stringify(authData));

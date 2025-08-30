@@ -42,6 +42,17 @@ export async function GET(req: NextRequest) {
       return redirectToLogin('授权状态验证失败，可能存在安全风险', req);
     }
 
+    // 从 state 参数中解析移动端标识
+    const isMobileFromState = state.endsWith('_mobile');
+    const isMobileFromCookie =
+      req.cookies.get('oauth_mobile')?.value === 'true';
+
+    console.log('移动端标识解析:', {
+      state: state,
+      isMobileFromState,
+      isMobileFromCookie,
+    });
+
     console.log('OAuth 参数验证成功，获取配置...');
 
     let config;
@@ -142,23 +153,31 @@ export async function GET(req: NextRequest) {
     }
     const baseUrl = getBaseUrl(req);
 
-    // 检测请求来源，如果是移动应用则重定向到深度链接
+    // 检测请求来源，优先使用state参数中的移动端标识
     const userAgent = req.headers.get('user-agent') || '';
     const referer = req.headers.get('referer') || '';
+
+    // 多重检测移动端标识，优先级：state参数 > cookie > URL参数 > headers
     const isMobileApp =
-      userAgent.includes('OrionTV') ||
-      req.url.includes('mobile=1') ||
-      req.headers.get('x-mobile-app') === 'true' ||
-      referer.includes('mobile=1');
+      isMobileFromState || // 优先：state参数
+      isMobileFromCookie || // 备选1：cookie
+      userAgent.includes('OrionTV') || // 备选2：User-Agent
+      req.url.includes('mobile=1') || // 备选3：URL参数
+      req.headers.get('x-mobile-app') === 'true' || // 备选4：自定义header
+      referer.includes('mobile=1') || // 备选5：referer
+      referer.includes('mobile%3D1'); // 备选6：URL编码的mobile参数
 
     console.log('移动应用检测详情:', {
       userAgent,
       referer,
       host: req.headers.get('host'),
+      isMobileFromState,
+      isMobileFromCookie,
       hasUserAgentOrion: userAgent.includes('OrionTV'),
       hasUrlMobile: req.url.includes('mobile=1'),
       hasXMobileApp: req.headers.get('x-mobile-app') === 'true',
       hasRefererMobile: referer.includes('mobile=1'),
+      hasRefererMobileEncoded: referer.includes('mobile%3D1'),
       finalIsMobileApp: isMobileApp,
     });
 
@@ -183,8 +202,13 @@ export async function GET(req: NextRequest) {
       secure: req.url.startsWith('https://'),
     });
 
-    // 清除 OAuth state cookie
+    // 清除 OAuth 相关的 cookies
     response.cookies.set('oauth_state', '', {
+      path: '/',
+      expires: new Date(0),
+    });
+
+    response.cookies.set('oauth_mobile', '', {
       path: '/',
       expires: new Date(0),
     });
@@ -483,17 +507,32 @@ function getRedirectUri(req: NextRequest): string {
  * 重定向到登录页面并显示错误信息
  */
 function redirectToLogin(error: string, req: NextRequest): NextResponse {
-  // 检测请求来源
+  // 尝试从多个来源检测移动端请求
   const userAgent = req.headers.get('user-agent') || '';
+  const referer = req.headers.get('referer') || '';
+  const isMobileFromCookie = req.cookies.get('oauth_mobile')?.value === 'true';
+
+  // URL中state参数检测（虽然这里可能已经是错误情况，但仍尝试检测）
+  const url = new URL(req.url);
+  const state = url.searchParams.get('state') || '';
+  const isMobileFromState = state.endsWith('_mobile');
+
   const isMobileApp =
+    isMobileFromState ||
+    isMobileFromCookie ||
     userAgent.includes('OrionTV') ||
     req.url.includes('mobile=1') ||
-    req.headers.get('x-mobile-app') === 'true';
+    req.headers.get('x-mobile-app') === 'true' ||
+    referer.includes('mobile=1') ||
+    referer.includes('mobile%3D1');
 
   console.log('redirectToLogin移动应用检测:', {
     userAgent,
+    referer,
     url: req.url,
     host: req.headers.get('host'),
+    isMobileFromState,
+    isMobileFromCookie,
     isMobileApp,
   });
 

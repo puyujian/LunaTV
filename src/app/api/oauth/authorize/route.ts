@@ -50,8 +50,9 @@ export async function GET(req: NextRequest) {
       finalIsMobileApp: isMobileApp,
     });
 
-    // 生成 state 参数防止 CSRF 攻击
-    const state = generateRandomState();
+    // 生成 state 参数防止 CSRF 攻击，并包含移动端标识
+    const baseState = generateRandomState();
+    const state = isMobileApp ? `${baseState}_mobile` : `${baseState}_web`;
 
     // 获取重定向地址，优先使用配置的 redirectUri
     let redirectUri = getRedirectUri(req, oauthConfig.redirectUri);
@@ -83,6 +84,17 @@ export async function GET(req: NextRequest) {
       sameSite: 'lax',
       maxAge: 10 * 60, // 10 分钟
     });
+
+    // 如果是移动端，额外设置一个标识cookie作为备用
+    if (isMobileApp) {
+      response.cookies.set('oauth_mobile', 'true', {
+        path: '/',
+        httpOnly: true,
+        secure: req.url.startsWith('https://'),
+        sameSite: 'lax',
+        maxAge: 10 * 60, // 10 分钟
+      });
+    }
 
     return response;
   } catch (error) {

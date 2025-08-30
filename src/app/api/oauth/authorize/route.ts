@@ -11,6 +11,8 @@ export const runtime = 'nodejs';
  */
 export async function GET(req: NextRequest) {
   try {
+    console.log('OAuth 授权开始处理:', req.url);
+
     const config = await getConfig();
     const oauthConfig = config.SiteConfig.LinuxDoOAuth;
 
@@ -30,11 +32,35 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // 检测是否为移动应用请求
+    const url = new URL(req.url);
+    const userAgent = req.headers.get('user-agent') || '';
+    const isMobileApp =
+      url.searchParams.get('mobile') === '1' ||
+      userAgent.includes('OrionTV') ||
+      req.headers.get('x-mobile-app') === 'true';
+
+    console.log('授权请求检测详情:', {
+      url: req.url,
+      userAgent,
+      host: req.headers.get('host'),
+      hasMobileParam: url.searchParams.get('mobile') === '1',
+      hasUserAgentOrion: userAgent.includes('OrionTV'),
+      hasXMobileApp: req.headers.get('x-mobile-app') === 'true',
+      finalIsMobileApp: isMobileApp,
+    });
+
     // 生成 state 参数防止 CSRF 攻击
     const state = generateRandomState();
 
     // 获取重定向地址，优先使用配置的 redirectUri
-    const redirectUri = getRedirectUri(req, oauthConfig.redirectUri);
+    let redirectUri = getRedirectUri(req, oauthConfig.redirectUri);
+
+    // 如果是移动应用，确保回调URL包含mobile标识
+    if (isMobileApp && !redirectUri.includes('mobile=1')) {
+      const separator = redirectUri.includes('?') ? '&' : '?';
+      redirectUri += `${separator}mobile=1`;
+    }
 
     // 构建授权 URL
     const authorizeUrl = new URL(oauthConfig.authorizeUrl);
@@ -42,6 +68,9 @@ export async function GET(req: NextRequest) {
     authorizeUrl.searchParams.set('client_id', oauthConfig.clientId);
     authorizeUrl.searchParams.set('state', state);
     authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+
+    console.log('构建的授权URL:', authorizeUrl.toString());
+    console.log('回调地址:', redirectUri);
 
     // 将 state 存储到会话中（这里使用 cookie 存储）
     const response = NextResponse.redirect(authorizeUrl.toString());

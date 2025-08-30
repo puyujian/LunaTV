@@ -144,11 +144,23 @@ export async function GET(req: NextRequest) {
 
     // 检测请求来源，如果是移动应用则重定向到深度链接
     const userAgent = req.headers.get('user-agent') || '';
-    const _referer = req.headers.get('referer') || '';
+    const referer = req.headers.get('referer') || '';
     const isMobileApp =
       userAgent.includes('OrionTV') ||
       req.url.includes('mobile=1') ||
-      req.headers.get('x-mobile-app') === 'true';
+      req.headers.get('x-mobile-app') === 'true' ||
+      referer.includes('mobile=1');
+
+    console.log('移动应用检测详情:', {
+      userAgent,
+      referer,
+      host: req.headers.get('host'),
+      hasUserAgentOrion: userAgent.includes('OrionTV'),
+      hasUrlMobile: req.url.includes('mobile=1'),
+      hasXMobileApp: req.headers.get('x-mobile-app') === 'true',
+      hasRefererMobile: referer.includes('mobile=1'),
+      finalIsMobileApp: isMobileApp,
+    });
 
     let response;
     if (isMobileApp) {
@@ -478,16 +490,26 @@ function redirectToLogin(error: string, req: NextRequest): NextResponse {
     req.url.includes('mobile=1') ||
     req.headers.get('x-mobile-app') === 'true';
 
+  console.log('redirectToLogin移动应用检测:', {
+    userAgent,
+    url: req.url,
+    host: req.headers.get('host'),
+    isMobileApp,
+  });
+
   if (isMobileApp) {
     // 移动应用：重定向到深度链接并传递错误信息
-    return NextResponse.redirect(
-      `oriontv://oauth/callback?error=${encodeURIComponent(error)}`
-    );
+    const errorUrl = `oriontv://oauth/callback?error=${encodeURIComponent(
+      error
+    )}`;
+    console.log('重定向到深度链接错误页面:', errorUrl);
+    return NextResponse.redirect(errorUrl);
   } else {
     // Web应用：重定向到登录页面
     const baseUrl = getBaseUrl(req);
     const loginUrl = new URL('/login', baseUrl);
     loginUrl.searchParams.set('oauth_error', error);
+    console.log('重定向到Web登录页面:', loginUrl.toString());
     return NextResponse.redirect(loginUrl.toString());
   }
 }

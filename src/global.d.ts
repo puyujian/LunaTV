@@ -1,7 +1,8 @@
 export {};
 
+/* eslint-disable no-var */
 declare global {
-  let tempTokenStore:
+  var tempTokenStore:
     | Map<string, { cookie: string; expires: number }>
     | undefined;
 }

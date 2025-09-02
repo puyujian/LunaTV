@@ -82,7 +82,7 @@
     "webpack-obfuscator": "^3.5.1"
   },
   "lint-staged": {
-    "**/*.{js,jsx,ts,tsx}": [
+    "src/**/*.{js,jsx,ts,tsx}": [
       "eslint --max-warnings=0",
       "prettier -w"
     ],

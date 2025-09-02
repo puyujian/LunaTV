@@ -35,6 +35,8 @@ interface LiveChannel {
   logo: string;
   group: string;
   url: string;
+  // 同名频道合并后服务器返回的多线路地址（首个等同于 url）
+  urls?: string[];
 }
 
 // 直播源接口
@@ -127,6 +129,12 @@ function LivePageClient() {
   const [favorited, setFavorited] = useState(false);
   const favoritedRef = useRef(false);
   const currentChannelRef = useRef<LiveChannel | null>(null);
+
+  // 多线路候选与切换控制
+  const candidateUrlsRef = useRef<string[]>([]);
+  const candidateIndexRef = useRef<number>(0);
+  const attemptedSetRef = useRef<Set<string>>(new Set());
+  const precheckAbortRef = useRef<AbortController | null>(null);
 
   // EPG数据清洗函数 - 去除重叠的节目，保留时间较短的，只显示今日节目
   const cleanEpgData = (
@@ -363,6 +371,7 @@ function LivePageClient() {
         logo: channel.logo,
         group: channel.group || '其他',
         url: channel.url,
+        urls: channel.urls || (channel.url ? [channel.url] : []),
       }));
 
       setCurrentChannels(channels);
@@ -382,18 +391,30 @@ function LivePageClient() {
           );
           if (foundChannel) {
             setCurrentChannel(foundChannel);
-            setVideoUrl(foundChannel.url);
+            initializeCandidates(foundChannel);
+            const first =
+              (foundChannel.urls && foundChannel.urls[0]) || foundChannel.url;
+            attemptedSetRef.current.add(first);
+            setVideoUrl(first);
             // 延迟滚动到选中的频道
             setTimeout(() => {
               scrollToChannel(foundChannel);
             }, 200);
           } else {
-            setCurrentChannel(channels[0]);
-            setVideoUrl(channels[0].url);
+            const ch0 = channels[0];
+            setCurrentChannel(ch0);
+            initializeCandidates(ch0);
+            const first0 = (ch0.urls && ch0.urls[0]) || ch0.url;
+            attemptedSetRef.current.add(first0);
+            setVideoUrl(first0);
           }
         } else {
-          setCurrentChannel(channels[0]);
-          setVideoUrl(channels[0].url);
+          const ch1 = channels[0];
+          setCurrentChannel(ch1);
+          initializeCandidates(ch1);
+          const first1 = (ch1.urls && ch1.urls[0]) || ch1.url;
+          attemptedSetRef.current.add(first1);
+          setVideoUrl(first1);
         }
       }
 
@@ -498,7 +519,10 @@ function LivePageClient() {
     setUnsupportedType(null);
 
     setCurrentChannel(channel);
-    setVideoUrl(channel.url);
+    initializeCandidates(channel);
+    const first = (channel.urls && channel.urls[0]) || channel.url;
+    attemptedSetRef.current.add(first);
+    setVideoUrl(first);
 
     // 自动滚动到选中的频道位置
     setTimeout(() => {
@@ -592,10 +616,68 @@ function LivePageClient() {
     }
   };
 
+  // 初始化候选线路
+  const initializeCandidates = (channel: LiveChannel, preferred?: string) => {
+    const list = Array.from(
+      new Set(
+        [
+          ...(channel.urls && channel.urls.length ? channel.urls : []),
+          channel.url,
+        ].filter(Boolean)
+      )
+    );
+    // 若指定了优先 url，则将其置前
+    if (preferred && list.includes(preferred)) {
+      const idx = list.indexOf(preferred);
+      if (idx > 0) {
+        const [u] = list.splice(idx, 1);
+        list.unshift(u);
+      }
+    }
+    candidateUrlsRef.current = list;
+    candidateIndexRef.current = 0;
+    attemptedSetRef.current = new Set();
+  };
+
+  // 切到下一条可用线路
+  const tryNextSource = (_reason?: string) => {
+    // 避免在没有候选的情况下触发
+    const list = candidateUrlsRef.current || [];
+    const curIdx = candidateIndexRef.current;
+    let nextIdx = curIdx + 1;
+    while (
+      nextIdx < list.length &&
+      attemptedSetRef.current.has(list[nextIdx])
+    ) {
+      nextIdx++;
+    }
+    if (nextIdx >= list.length) {
+      // 全部线路不可用
+      setIsVideoLoading(false);
+      setError('所有备用线路均不可用');
+      return false;
+    }
+    const nextUrl = list[nextIdx];
+    candidateIndexRef.current = nextIdx;
+    attemptedSetRef.current.add(nextUrl);
+    // 清理当前播放器实例再切换
+    cleanupPlayer();
+    setIsVideoLoading(true);
+    setUnsupportedType(null);
+    setVideoUrl(nextUrl);
+    return true;
+  };
+
   // 清理播放器资源的统一函数
   const cleanupPlayer = () => {
     // 重置不支持的类型状态
     setUnsupportedType(null);
+    // 取消未完成的预检查，释放资源
+    try {
+      precheckAbortRef.current?.abort();
+    } catch (e) {
+      /* 忽略预检中止错误 */
+    }
 
     if (artPlayerRef.current) {
       try {
@@ -911,6 +993,13 @@ function LivePageClient() {
             hls.destroy();
             break;
         }
+        // 对无法恢复的致命错误尝试切换备用线路
+        if (
+          data.type !== Hls.ErrorTypes.NETWORK_ERROR &&
+          data.type !== Hls.ErrorTypes.MEDIA_ERROR
+        ) {
+          tryNextSource(`hls fatal: ${data.type}`);
+        }
       }
     });
   }
@@ -940,9 +1029,22 @@ function LivePageClient() {
       const precheckUrl = `/api/live/precheck?url=${encodeURIComponent(
         videoUrl
       )}&moontv-source=${currentSourceRef.current?.key || ''}`;
-      const precheckResponse = await fetch(precheckUrl);
+      // 取消上一次未完成的预检查，避免资源占用
+      try {
+        precheckAbortRef.current?.abort();
+      } catch (e) {
+        /* 忽略预检中止错误 */
+      }
+      const controller = new AbortController();
+      precheckAbortRef.current = controller;
+      const precheckResponse = await fetch(precheckUrl, {
+        signal: controller.signal,
+      });
       if (!precheckResponse.ok) {
         console.error('预检查失败:', precheckResponse.statusText);
+        if (!tryNextSource('precheck http error')) {
+          setUnsupportedType('m3u8');
+        }
         return;
       }
       const precheckResult = await precheckResponse.json();
@@ -950,10 +1052,12 @@ function LivePageClient() {
         type = precheckResult.type;
       }
 
-      // 如果不是 m3u8 类型，设置不支持的类型并返回
+      // 如果不是 m3u8 类型，尝试自动切换备用线路
       if (type !== 'm3u8') {
-        setUnsupportedType(type);
-        setIsVideoLoading(false);
+        if (!tryNextSource(`unsupported type: ${type}`)) {
+          setUnsupportedType(type);
+          setIsVideoLoading(false);
+        }
         return;
       }
 
@@ -1035,6 +1139,8 @@ function LivePageClient() {
 
         artPlayerRef.current.on('error', (err: any) => {
           console.error('播放器错误:', err);
+          // 发生播放错误时，尝试切换备用线路
+          tryNextSource('artplayer error');
         });
 
         if (artPlayerRef.current?.video) {

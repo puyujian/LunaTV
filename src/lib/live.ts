@@ -14,6 +14,8 @@ export interface LiveChannels {
     logo: string;
     group: string;
     url: string;
+    // 同名频道合并后的全部直播地址，首个等同于 url
+    urls?: string[];
   }[];
   epgUrl: string;
   epgs: {
@@ -106,8 +108,10 @@ async function parseEpg(
     [key: string]: { start: string; end: string; title: string }[];
   } = {};
 
+  let response: Response | null = null;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   try {
-    const response = await fetch(epgUrl, {
+    response = await fetch(epgUrl, {
       headers: {
         'User-Agent': ua,
       },
@@ -116,8 +120,8 @@ async function parseEpg(
       return {};
     }
 
-    // 使用 ReadableStream 逐行处理，避免将整个文件加载到内存
-    const reader = response.body?.getReader();
+    // 使用 ReadableStream 逐行处理，避免将整个文件加载到内�?
+    reader = response.body?.getReader() || null;
     if (!reader) {
       return {};
     }
@@ -150,7 +154,7 @@ async function parseEpg(
           const tvgIdMatch = trimmedLine.match(/channel="([^"]*)"/);
           currentTvgId = tvgIdMatch ? tvgIdMatch[1] : '';
 
-          // 提取开始时间
+          // 提取开始时�?
           const startMatch = trimmedLine.match(/start="([^"]*)"/);
           const start = startMatch ? startMatch[1] : '';
 
@@ -160,11 +164,11 @@ async function parseEpg(
 
           if (currentTvgId && start && end) {
             currentProgram = { start, end, title: '' };
-            // 优化：如果当前频道不在我们关注的列表中，标记为跳过
+            // 优化：如果当前频道不在我们关注的列表中，标记为跳�?
             shouldSkipCurrentProgram = !tvgs.has(currentTvgId);
           }
         }
-        // 解析 <title> 标签 - 只有在需要解析当前节目时才处理
+        // 解析 <title> 标签 - 只有在需要解析当前节目时才处�?
         else if (
           trimmedLine.startsWith('<title') &&
           currentProgram &&
@@ -196,13 +200,24 @@ async function parseEpg(
     }
   } catch (error) {
     // ignore
+  } finally {
+    try {
+      reader?.releaseLock();
+    } catch (e) {
+      /* 忽略释放 reader 错误 */
+    }
+    try {
+      response?.body?.cancel();
+    } catch (e) {
+      /* 忽略取消 body 错误 */
+    }
   }
 
   return result;
 }
 
 /**
- * 解析M3U文件内容，提取频道信息
+ * 解析M3U文件内容，提取频道信�?
  * @param m3uContent M3U文件的内容字符串
  * @returns 频道信息数组
  */
@@ -218,16 +233,21 @@ function parseM3U(
     logo: string;
     group: string;
     url: string;
+    urls?: string[];
   }[];
 } {
-  const channels: {
-    id: string;
-    tvgId: string;
-    name: string;
-    logo: string;
-    group: string;
-    url: string;
-  }[] = [];
+  const channelMap: Map<
+    string,
+    {
+      id: string;
+      tvgId: string;
+      name: string;
+      logo: string;
+      group: string;
+      url: string;
+      urls?: string[];
+    }
+  > = new Map();
 
   const lines = m3uContent
     .split('\n')
@@ -236,18 +256,26 @@ function parseM3U(
 
   let tvgUrl = '';
   let channelIndex = 0;
+
+  const normalizeName = (name: string) =>
+    name
+      .trim()
+      // �Ƴ��հס��ָ����ͳ������ţ�ͳһΪСд���ںϲ���
+      .replace(/\s+/g, '')
+      .replace(/[/()（）[\]【】_-]+/g, '')
+      .toLowerCase();
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
     // 检查是否是 #EXTM3U 行，提取 tvg-url
     if (line.startsWith('#EXTM3U')) {
-      // 支持两种格式：x-tvg-url 和 url-tvg
+      // 支持两种格式：x-tvg-url �?url-tvg
       const tvgUrlMatch = line.match(/(?:x-tvg-url|url-tvg)="([^"]*)"/);
       tvgUrl = tvgUrlMatch ? tvgUrlMatch[1].split(',')[0].trim() : '';
       continue;
     }
 
-    // 检查是否是 #EXTINF 行
+    // 检查是否是 #EXTINF �?
     if (line.startsWith('#EXTINF:')) {
       // 提取 tvg-id
       const tvgIdMatch = line.match(/tvg-id="([^"]*)"/);
@@ -265,7 +293,7 @@ function parseM3U(
       const groupTitleMatch = line.match(/group-title="([^"]*)"/);
       const group = groupTitleMatch ? groupTitleMatch[1] : '无分组';
 
-      // 提取标题（#EXTINF 行最后的逗号后面的内容）
+      // 提取标题�?EXTINF 行最后的逗号后面的内容）
       const titleMatch = line.match(/,([^,]*)$/);
       const title = titleMatch ? titleMatch[1].trim() : '';
 
@@ -276,24 +304,40 @@ function parseM3U(
       if (i + 1 < lines.length && !lines[i + 1].startsWith('#')) {
         const url = lines[i + 1];
 
-        // 只有当有名称和URL时才添加到结果中
+        // 只有当有名称和URL时才处理（按 tvgId 或规范化名称进行合并�?
         if (name && url) {
-          channels.push({
-            id: `${sourceKey}-${channelIndex}`,
-            tvgId,
-            name,
-            logo,
-            group,
-            url,
-          });
-          channelIndex++;
+          const key = tvgId || normalizeName(name);
+          const existing = channelMap.get(key);
+          if (existing) {
+            const urls = existing.urls || [existing.url];
+            if (!urls.includes(url)) urls.push(url);
+            existing.urls = urls;
+            if (!existing.logo && logo) existing.logo = logo;
+            if (!existing.group && group) existing.group = group;
+          } else {
+            channelMap.set(key, {
+              id: `${sourceKey}-${channelIndex}`,
+              tvgId,
+              name,
+              logo,
+              group,
+              url,
+              urls: [url],
+            });
+            channelIndex++;
+          }
         }
 
-        // 跳过下一行，因为已经处理了
+        // 跳过下一行，因为已经处理�?
         i++;
       }
     }
   }
+
+  const channels = Array.from(channelMap.values()).map((c) => ({
+    ...c,
+    url: c.urls && c.urls.length > 0 ? c.urls[0] : c.url,
+  }));
 
   return { tvgUrl, channels };
 }
@@ -301,7 +345,7 @@ function parseM3U(
 // utils/urlResolver.js
 export function resolveUrl(baseUrl: string, relativePath: string) {
   try {
-    // 如果已经是完整的 URL，直接返回
+    // 如果已经是完整的 URL，直接返�?
     if (
       relativePath.startsWith('http://') ||
       relativePath.startsWith('https://')
@@ -309,13 +353,13 @@ export function resolveUrl(baseUrl: string, relativePath: string) {
       return relativePath;
     }
 
-    // 如果是协议相对路径 (//example.com/path)
+    // 如果是协议相对路�?(//example.com/path)
     if (relativePath.startsWith('//')) {
       const baseUrlObj = new URL(baseUrl);
       return `${baseUrlObj.protocol}${relativePath}`;
     }
 
-    // 使用 URL 构造函数处理相对路径
+    // 使用 URL 构造函数处理相对路�?
     const baseUrlObj = new URL(baseUrl);
     const resolvedUrl = new URL(relativePath, baseUrlObj);
     return resolvedUrl.href;
@@ -326,13 +370,13 @@ export function resolveUrl(baseUrl: string, relativePath: string) {
 }
 
 function fallbackUrlResolve(baseUrl: string, relativePath: string) {
-  // 移除 baseUrl 末尾的文件名，保留目录路径
+  // 移除 baseUrl 末尾的文件名，保留目录路�?
   let base = baseUrl;
   if (!base.endsWith('/')) {
     base = base.substring(0, base.lastIndexOf('/') + 1);
   }
 
-  // 处理不同类型的相对路径
+  // 处理不同类型的相对路�?
   if (relativePath.startsWith('/')) {
     // 绝对路径 (/path/to/file)
     const urlObj = new URL(base);
@@ -353,7 +397,7 @@ function fallbackUrlResolve(baseUrl: string, relativePath: string) {
     const urlObj = new URL(base);
     return `${urlObj.protocol}//${urlObj.host}/${segments.join('/')}`;
   } else {
-    // 当前目录相对路径 (file.ts 或 ./file.ts)
+    // 当前目录相对路径 (file.ts �?./file.ts)
     const cleanRelative = relativePath.startsWith('./')
       ? relativePath.slice(2)
       : relativePath;
@@ -365,7 +409,7 @@ function fallbackUrlResolve(baseUrl: string, relativePath: string) {
 export function getBaseUrl(m3u8Url: string) {
   try {
     const url = new URL(m3u8Url);
-    // 如果 URL 以 .m3u8 结尾，移除文件名
+    // 如果 URL �?.m3u8 结尾，移除文件名
     if (url.pathname.endsWith('.m3u8')) {
       url.pathname = url.pathname.substring(
         0,

@@ -134,6 +134,7 @@ function shouldSkipAuth(pathname: string): boolean {
     '/api/server-config',
     '/api/oauth/authorize',
     '/api/oauth/callback',
+    '/api/oauth/exchange-token',
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));

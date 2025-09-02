@@ -183,12 +183,16 @@ export async function GET(req: NextRequest) {
 
     let response;
     if (isMobileApp) {
-      // 移动应用：深度链接直接传递cookie
+      // 移动应用：传递短期token而非完整cookie
+      const shortToken = generateShortToken(); // 生成短期token
       const deepLinkUrl = new URL('oriontv://oauth/callback');
       deepLinkUrl.searchParams.set('success', 'true');
-      deepLinkUrl.searchParams.set('cookie', authCookie); // 直接传递cookie
+      deepLinkUrl.searchParams.set('token', shortToken); // 传递短期token
 
       console.log('构建的深度链接URL:', deepLinkUrl.toString());
+
+      // 将token与cookie关联存储到临时存储（Redis或内存）
+      await storeTemporaryToken(shortToken, authCookie);
 
       response = NextResponse.redirect(deepLinkUrl.toString());
     } else {
@@ -561,5 +565,50 @@ function redirectToLogin(error: string, req: NextRequest): NextResponse {
     loginUrl.searchParams.set('oauth_error', error);
     console.log('重定向到Web登录页面:', loginUrl.toString());
     return NextResponse.redirect(loginUrl.toString());
+  }
+}
+
+/**
+ * 生成短期token
+ */
+function generateShortToken(): string {
+  const array = new Uint8Array(16); // 128位随机数
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join(
+    ''
+  );
+}
+
+/**
+ * 存储临时token与cookie的映射
+ */
+async function storeTemporaryToken(
+  token: string,
+  cookie: string
+): Promise<void> {
+  try {
+    // 使用内存存储（生产环境建议用Redis）
+    const tempTokenStore = global.tempTokenStore || new Map();
+    global.tempTokenStore = tempTokenStore;
+
+    // 存储5分钟过期
+    tempTokenStore.set(token, {
+      cookie,
+      expires: Date.now() + 5 * 60 * 1000, // 5分钟
+    });
+
+    // 清理过期token
+    const now = Date.now();
+    const entries = Array.from(tempTokenStore.entries());
+    for (const [key, value] of entries) {
+      if (value.expires < now) {
+        tempTokenStore.delete(key);
+      }
+    }
+
+    console.log('临时token存储成功:', token);
+  } catch (error) {
+    console.error('临时token存储失败:', error);
+    throw new Error('无法存储临时token');
   }
 }

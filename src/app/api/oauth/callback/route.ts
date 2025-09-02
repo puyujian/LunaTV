@@ -183,8 +183,14 @@ export async function GET(req: NextRequest) {
 
     let response;
     if (isMobileApp) {
-      // 移动应用：重定向到深度链接
-      response = NextResponse.redirect('oriontv://oauth/callback?success=true');
+      // 移动应用：深度链接直接传递cookie
+      const deepLinkUrl = new URL('oriontv://oauth/callback');
+      deepLinkUrl.searchParams.set('success', 'true');
+      deepLinkUrl.searchParams.set('cookie', authCookie); // 直接传递cookie
+
+      console.log('构建的深度链接URL:', deepLinkUrl.toString());
+
+      response = NextResponse.redirect(deepLinkUrl.toString());
     } else {
       // Web应用：重定向到首页
       response = NextResponse.redirect(new URL('/', baseUrl));
@@ -199,7 +205,7 @@ export async function GET(req: NextRequest) {
       expires,
       sameSite: 'lax',
       httpOnly: false,
-      secure: req.url.startsWith('https://'),
+      secure: false, // 与login接口保持一致，避免HTTPS/HTTP问题
     });
 
     // 清除 OAuth 相关的 cookies

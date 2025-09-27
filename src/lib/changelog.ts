@@ -11,6 +11,20 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '100.0.1',
+    date: '2025-09-25',
+    added: [
+      // 无新增内容
+    ],
+    changed: [
+      // 无变更内容
+    ],
+    fixed: [
+      '修复错误的环境变量 ADMIN_USERNAME',
+      '修复 bangumi 数据中没有图片导致首页崩溃问题',
+    ],
+  },
+  {
     version: '100.0.0',
     date: '2025-08-26',
     added: [

@@ -25,5 +25,10 @@ export interface BangumiCalendarData {
 export async function GetBangumiCalendarData(): Promise<BangumiCalendarData[]> {
   const response = await fetch('https://api.bgm.tv/calendar');
   const data = await response.json();
-  return data;
+
+  // 过滤掉没有图片的项目，防止首页崩溃
+  return data.map((day: BangumiCalendarData) => ({
+    ...day,
+    items: day.items.filter((item) => item.images && item.images.large),
+  }));
 }

@@ -220,6 +220,8 @@ async function getInitConfig(
       DisableYellowFilter:
         process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
       FluidSearch: process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false',
+      // 默认不设置任何统计代码
+      GlobalStatisticsCode: '',
       EnableRegistration: process.env.ENABLE_REGISTRATION === 'true',
       RegistrationApproval: process.env.REGISTRATION_APPROVAL !== 'false',
       MaxUsers: process.env.MAX_USERS
@@ -370,6 +372,11 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       tokenUrl: 'https://connect.linux.do/oauth2/token',
       userInfoUrl: 'https://connect.linux.do/api/user',
     };
+  }
+
+  // 确保统计代码字段存在
+  if (typeof adminConfig.SiteConfig.GlobalStatisticsCode !== 'string') {
+    adminConfig.SiteConfig.GlobalStatisticsCode = '';
   }
 
   // 站长变更自检

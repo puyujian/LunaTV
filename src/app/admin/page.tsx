@@ -300,6 +300,8 @@ interface SiteConfig {
   DoubanImageProxy: string;
   DisableYellowFilter: boolean;
   FluidSearch: boolean;
+  // 全局统计代码（支持多行），会原样插入页面，不会转义
+  GlobalStatisticsCode?: string;
 }
 
 // 视频源数据类型
@@ -4679,6 +4681,7 @@ const SiteConfigComponent = ({
     DoubanImageProxy: '',
     DisableYellowFilter: false,
     FluidSearch: true,
+    GlobalStatisticsCode: '',
   });
 
   // 豆瓣数据源相关状态
@@ -4742,6 +4745,7 @@ const SiteConfigComponent = ({
         DoubanImageProxy: config.SiteConfig.DoubanImageProxy || '',
         DisableYellowFilter: config.SiteConfig.DisableYellowFilter || false,
         FluidSearch: config.SiteConfig.FluidSearch || true,
+        GlobalStatisticsCode: config.SiteConfig.GlobalStatisticsCode || '',
       });
     }
   }, [config]);
@@ -4862,6 +4866,32 @@ const SiteConfigComponent = ({
           rows={3}
           className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent'
         />
+      </div>
+
+      {/* 全局统计代码（原样插入） */}
+      <div>
+        <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+          全局统计代码
+        </label>
+        <textarea
+          placeholder={
+            '可粘贴完整第三方统计代码片段，例如:\n\n<!-- Google Analytics -->\n<script>/* 你的 GA 代码 */</script>\n\n<!-- 百度统计 -->\n<script>/* 你的百度统计代码 */</script>'
+          }
+          value={siteSettings.GlobalStatisticsCode || ''}
+          onChange={(e) =>
+            setSiteSettings((prev) => ({
+              ...prev,
+              GlobalStatisticsCode: e.target.value,
+            }))
+          }
+          rows={6}
+          className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono'
+        />
+        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+          在此粘贴第三方统计/埋点代码（例如 Google
+          Analytics、百度统计、友盟、神策数据等）。 系统将原样输出到页面，不进行
+          HTML 转义。留空则不输出。
+        </p>
       </div>
 
       {/* 豆瓣数据源设置 */}

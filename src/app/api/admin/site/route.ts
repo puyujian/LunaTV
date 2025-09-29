@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy,
       DisableYellowFilter,
       FluidSearch,
+      GlobalStatisticsCode,
       EnableRegistration,
       RegistrationApproval,
     } = body as {
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy: string;
       DisableYellowFilter: boolean;
       FluidSearch: boolean;
+      GlobalStatisticsCode?: string;
       EnableRegistration: boolean;
       RegistrationApproval: boolean;
     };
@@ -68,8 +70,12 @@ export async function POST(request: NextRequest) {
       typeof DoubanImageProxy !== 'string' ||
       typeof DisableYellowFilter !== 'boolean' ||
       typeof FluidSearch !== 'boolean' ||
-      typeof EnableRegistration !== 'boolean' ||
-      typeof RegistrationApproval !== 'boolean'
+      (GlobalStatisticsCode !== undefined &&
+        typeof GlobalStatisticsCode !== 'string') ||
+      (EnableRegistration !== undefined &&
+        typeof EnableRegistration !== 'boolean') ||
+      (RegistrationApproval !== undefined &&
+        typeof RegistrationApproval !== 'boolean')
     ) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
@@ -100,8 +106,14 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy,
       DisableYellowFilter,
       FluidSearch,
-      EnableRegistration,
-      RegistrationApproval,
+      GlobalStatisticsCode:
+        GlobalStatisticsCode ??
+        adminConfig.SiteConfig.GlobalStatisticsCode ??
+        '',
+      EnableRegistration:
+        EnableRegistration ?? adminConfig.SiteConfig.EnableRegistration,
+      RegistrationApproval:
+        RegistrationApproval ?? adminConfig.SiteConfig.RegistrationApproval,
     };
 
     // 写入数据库和缓存

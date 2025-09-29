@@ -60,6 +60,7 @@ export default async function RootLayout({
     type: 'movie' | 'tv';
     query: string;
   }[];
+  let globalStatisticsCode = '';
   if (storageType !== 'localstorage') {
     const config = await getConfig();
     siteName = config.SiteConfig.SiteName;
@@ -78,6 +79,7 @@ export default async function RootLayout({
       query: category.query,
     }));
     fluidSearch = config.SiteConfig.FluidSearch;
+    globalStatisticsCode = config.SiteConfig.GlobalStatisticsCode || '';
   }
 
   // 将运行时配置注入到全局 window 对象，供客户端在运行时读取
@@ -120,6 +122,13 @@ export default async function RootLayout({
           <SiteProvider siteName={siteName} announcement={announcement}>
             {children}
             <GlobalErrorIndicator />
+            {/* 原样插入全局统计代码（不转义） */}
+            {globalStatisticsCode && (
+              <div
+                suppressHydrationWarning
+                dangerouslySetInnerHTML={{ __html: globalStatisticsCode }}
+              />
+            )}
           </SiteProvider>
         </ThemeProvider>
       </body>

@@ -16,6 +16,8 @@ export interface AdminConfig {
     DoubanImageProxy: string;
     DisableYellowFilter: boolean;
     FluidSearch: boolean;
+    // 全局统计代码（支持多行原始 HTML/JS 片段）
+    GlobalStatisticsCode?: string;
     EnableRegistration: boolean; // 全局注册开关
     RegistrationApproval: boolean; // 是否需要管理员审批
     MaxUsers?: number; // 最大用户数限制（可选）
